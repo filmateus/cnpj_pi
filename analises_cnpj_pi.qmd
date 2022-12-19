@@ -22,6 +22,8 @@ Esse estudo é realizado tendo como base de dados o cadastro de CNPJ's (Cadastro
 #| results: hide
 
 
+#teste
+
 knitr::opts_chunk$set(
   fig.width=12, fig.height=6,
   #out.width = "100%",
