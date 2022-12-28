@@ -1,0 +1,96 @@
+---
+title: "Analise de Sobrevivência das empresas do Piauí"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    theme: journal
+    social: menu
+    source_code: embed
+runtime: shiny
+---
+
+```{r include=FALSE}
+library(flexdashboard)
+library(formattable)
+library(tidyverse)
+library(lubridate)
+library(sf)
+library(shiny)
+```
+
+```{r include=FALSE, cache=TRUE}
+# tabelas com os códigos e tipos de empresas - 
+nat_jud = qsacnpj::tab_natureza_juridica
+nat_jud$cod_subclass_natureza_juridica = as.numeric(nat_jud$cod_subclass_natureza_juridica)
+
+# carregando tabela com as empresas filtrando para empresas que fecharam após 2009
+empresas = read.csv('bq-empresas.csv')|>
+            dplyr::left_join(nat_jud, 
+                             by = c("natureza_juridica" = "cod_subclass_natureza_juridica"))|>
+            dplyr::filter(nm_natureza_juridica %in% c("Entidades Empresariais"))|>
+            dplyr::distinct()
+
+# tabela com as atividades fim das empresas
+cnae = qsacnpj::tab_cnae
+cnae$cod_cnae = as.integer(cnae$cod_cnae)
+
+# tabela final com as informações principais
+df =  read.csv('bq-estabelicimentos.csv')|>
+                dplyr::semi_join(empresas, by = "cnpj_basico")|>
+                dplyr::filter(situacao_cadastral == 8, 
+                              identificador_matriz_filial == 1, 
+                              data_situacao_cadastral > '2009-12-31')|>
+    left_join(cnae, by = c("cnae_fiscal_principal" = "cod_cnae" ))|>
+    dplyr::mutate(
+                  censura = ifelse(data_situacao_cadastral == '2018-02-01' | 
+                                     data_situacao_cadastral == '2015-02-09', 0, 1),
+                  Periodo = lubridate::interval(data_inicio_atividade, 
+                                                data_situacao_cadastral)/years(1),
+                  Periodo = round(Periodo, 0))|>
+   dplyr::select(cnpj_basico, nm_grupo, nm_classe, Periodo, censura)
+```
+
+## Column {.sidebar}
+
+```{r}
+selectInput(
+  'tipo_empresas', 
+  'Tipo de empresa:', 
+  choices = c(sort(unique(df$nm_classe), decreasing = FALSE))
+)
+
+selectInput(
+  'conf_int',
+  'Intervalo de Confiaça no Gráfico:',
+  choices = c(TRUE, FALSE)
+)
+```
+
+## Column {data-width="550"}
+
+### Tabela KM
+
+```{r}
+selectedData <- reactive({
+  df[(df$nm_classe == input$tipo_empresas),]
+})
+
+
+km = reactive({
+  
+  survival::survfit(survival::Surv(Periodo,censura) ~ 1, data = selectedData())
+  
+})
+
+renderPrint({
+    summary(km())
+})
+```
+
+## Column
+
+### Gráfico de Sobrevivência
+
+```{r}
+renderPlot({survminer::ggsurvplot(km(), data = selectedData(),  conf.int=input$conf_int)})
+```
