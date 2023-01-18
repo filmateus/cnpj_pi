@@ -3,11 +3,12 @@ title: "Análise de sobrevivência para o fechamento das empresas no Piauí a pa
 format: html
 ---
 
+**EM CONSTRUÇÃO**
+
 ```{r}
 #| message: false
 #| warning: false
 #| results: hide
-
 
 knitr::opts_chunk$set(
   fig.width=12, fig.height=6,
@@ -35,25 +36,22 @@ nat_jud$cod_subclass_natureza_juridica = as.numeric(nat_jud$cod_subclass_naturez
 cnae = qsacnpj::tab_cnae
 cnae$cod_cnae = as.integer(cnae$cod_cnae)
 
-empresas = read.csv('bq-empresas.csv')|>
+empresas_pi = read.csv("empresas_pi.csv", dec = ",")|>
   dplyr::left_join(nat_jud, 
                    by = c("natureza_juridica" = "cod_subclass_natureza_juridica"))|>
   dplyr::filter(nm_natureza_juridica %in% c("Entidades Empresariais"))|>
   dplyr::distinct()
 
-analise_survive = read.csv('bq-estabelicimentos.csv')|>
-                dplyr::semi_join(empresas, by = "cnpj_basico")|>
+analise_survive = read.csv("estabelecimentos_pi.csv")|>
+                dplyr::inner_join(empresas_pi, by = "cnpj_basico")|>
                 dplyr::filter(situacao_cadastral == 8, 
                               identificador_matriz_filial == 1, 
                               data_situacao_cadastral > '2009-12-31')
 ```
 
-Este projeto busca fazer uma análise de sobrevivência das empresas no estado piauí que tiveram os CNPJ's (Cadastro Nacional de Pessoas Juríricas) dados baixa, ou seja, a empresa teve suas atividades finalizadas. Os dados da Receita federal se iniciam na década de 1960, entretanto, restrigimos a análise para o fechamentos a partir do ano de 2010, totalizando `r dim(analise_survive)[1]` empresas. Essa restrição tem como objetivo obtermos um perfil das empresas mais atualizado.
+Este projeto busca fazer uma análise de sobrevivência das empresas no estado Piauí que tiveram os CNPJ's (Cadastro Nacional de Pessoas Juríricas) dados baixa, ou seja, a empresa teve suas atividades finalizadas. Os dados da Receita federal se iniciam na década de 1960, entretanto, restrigimos a análise para o fechamentos a partir do ano de 2010, totalizando `r dim(analise_survive)[1]` empresas. Essa restrição tem como objetivo obtermos um perfil mais atualizado das empresas fechadas. A análise considera somente as empresas que possuem natureza jurídica como *Entidade empresarial*
 
-A década de 2010 foi um período marcado por avanços tecnológicos, como a popularização do celular e do uso da internet, transformando o mercado. Essa transformação foi fortalecida na pandemia do covid-19, situação que exigiu muito para as empresas para sobreviver ao períodos que foram obrigadas a não ter atividades presenciais.
-
-Os dados possuem sua base no site da Receita Federal, entretanto, utilizamos uma base já tratada disponibilizada pelo site `Base de dados` 
-
+A década de 2010 foi um período marcado por avanços tecnológicos, como a popularização do celular e do uso da internet, transformando o mercado. Essa transformação foi fortalecida na pandemia do covid-19, situação que exigiu muito para as empresas para sobreviver ao período que foram obrigadas a não ter atividades presenciais.
 
 # Fechamentos de empresas desde  2010
 
@@ -85,13 +83,13 @@ analise_survive|>
      geom_text(aes(label = n), vjust=-0.5)
 ```
 
-Através do gráfico do fechamento por ano, percebemos que entre 2010 e 2012, há um comportamento estabilizado do número de empresas fechadas com média de 1174 empresas. Entretanto, em 2013, há um aumento de 117% em relação ao ano anterior, o comportamento que se inicia é de aumento do número de baixas de CNPJ's, tendo dois picos que quebram uma sequência linear, em 2015 e 2018, com 10.146 e 16.597 empresas que tiveram o registro baixado pela Receita Federal.
+Através do gráfico do fechamento por ano, percebemos que entre 2010 e 2012, há um comportamento estabilizado do número de empresas fechadas com média de 914 empresas. Entretanto, em 2013, existe um aumento de 114% em relação ao ano anterior. O comportamento que se inicia é de aumento do número de baixas de CNPJ's, tendo dois picos que quebram uma sequência linear, em 2015 e 2018, com 6.907 e 9.131 empresas que tiveram o registro baixado pela Receita Federal.
 
-Buscando uma explicação para esses dados discrepantes, temos que no dia 01/02/2018, houve 10423 baixas, resultado da ADE (Ato Declatório Executivo) 01/2018 que deu baixa automática em registros que não estavam regularizados até 26 de janeiro de 2018. Não foi encontrado nada para o ano de 2015, todavia em 09/02/2015, houve 6475 baixas, um número bastante elevado, indicando uma data onde foi procedimento parecido com o ano de 2018. Para dias normais, o pico foi em 28/04/2022 com 115 baixas, sendo a média diária de 16 empresas com registro baixado. 
+Buscando uma explicação para esses dados discrepantes, temos que no dia 01/02/2018, houve 6450 baixas, resultado da ADE (Ato Declatório Executivo) 01/2018 que deu baixa automática em registros que não estavam regularizados até 26 de janeiro de 2018. Não foi encontrado nada para o ano de 2015, todavia em 09/02/2015, houve 4962 baixas, um número bastante elevado, indicando uma data onde foi procedimento parecido com o ano de 2018. Para dias normais, o pico foi em 28/04/2022 com 67 baixas, sendo a média diária de 8 empresas com registro baixado. 
 
 # Período de funcionamento 
 
-Para compreender o tempo de funcionamento das empresas, temos o gráfico e utilizamos a função `summary`. A unidade de medida escolhida foi de anos para obtermos uma amplitude menor, mas fiel a diferença entre o menor período de funcionamento, 0 anos, e maior período, de 56 anos. Podíamos utilizar dias, por exemplo, mas com valores muito altos.
+Para compreender o tempo de funcionamento das empresas, temos o gráfico e utilizamos a função `summary`. A unidade de medida de tempo escolhida foi de anos para obtermos uma amplitude menor, mas fiel a diferença entre o menor período de funcionamento, 0 anos, e maior período, de 56 anos. Podíamos utilizar dias, por exemplo, mas com valores muito altos.
 
 ```{r}
 # contando o período de funcionamento
@@ -99,8 +97,6 @@ periodo =
 analise_survive|>
         dplyr::mutate(data_situacao_cadastral = ymd(data_situacao_cadastral),
                       data_inicio_atividade = ymd(data_inicio_atividade))|>
-        dplyr::filter(situacao_cadastral == 8,
-        identificador_matriz_filial == 1)|>
         dplyr::mutate(Período  = lubridate::interval(data_inicio_atividade, 
                                                      data_situacao_cadastral)/years(1))|>
         dplyr::select(Período)|>
@@ -116,19 +112,17 @@ summary(periodo$Período)
 ```
 
 
-Obtemos que a média de funcionamento das empresas é 6,55 anos, mas a mediana é de 3,65 anos. Essa difereça é explicada pelo a influência que os valores do último quantil, onde estão os os valores 25% mais altos da distribuição dos dados, tem sobre a média.
+Obtemos que a média de funcionamento das empresas é 8,21 anos, mas a mediana é de 5 anos. Essa diferença é explicada pelo a influência que os valores do último quantil, onde estão os os valores 25% mais altos da distribuição dos dados, tem sobre a média.
 
-Obvesevamos que até 75% das empresas funcionaram por 7,5 anos, logo a amplitude é de 7,5. Todavia para os dados que no ultimo quantial, temos que valor final é 56 anos, resultando numa amplitude 49 anos. Quantitamente, neste quantil, temos  21.772 empresas. 
-
-Resumidante, a maioria das empresas, 75 %, funcionam até 7 anos e 50%, somente 3 anos, no que consiste em períodos baixos de funcionamento.
+Obvesevamos que até 75% das empresas funcionaram por 11 anos, logo a amplitude é de 11 anos. Todavia para os dados que no ultimo quantial, temos que valor final é de 56 anos, resultando numa amplitude 45 anos. Quantitamente, neste quantil, temos 10.793 empresas. 
 
 # Ano de abertura e fechamento
 
 Abaixo, temos na linha vertical o ano de abertura da empresa e na horizontal o ano de fechamento.
 
-Alguns dados que podemos identificar é o ano de 2021 é o ano de com mais empresas que tiveram menos de 1 de funcionamento, com 2096 que abriram e fecharam neste mesmo ano. 
+Alguns dados que podemos identificar é o ano de 2021 é o ano de com mais empresas que tiveram menos de 1 de funcionamento, com 1156 que abriram e fecharam neste mesmo ano. 
 
-Entendendo quais foram as empresas que foram fechadas no ano de 2018 e que explixam o pico deste ano, podemos vizualizar valores altos a partir do ano de abertura de 2010, são valores que passam dos 1500 empresas fechadas e, de 2011 até 2014, os valores ultrapassam a barreira do 2300. São os valores mais altos registrados. Esse coportamento indica que a maioria das empresas que tiveram a baixa no CNPJ's em 2018 não tinham mais de 8 anos de funcionamento. 
+Entendendo quais foram as empresas que foram fechadas no ano de 2018 e que explixam o pico deste ano, podemos vizualizar valores altos a partir do ano de abertura de 2010, são valores que passam dos 1200 empresas fechadas e, de 2011 até 2013, os valores ultrapassam a barreira do 1700. São os valores mais altos registrados. Esse coportamento indica que a maioria das empresas que tiveram a baixa no CNPJ's em 2018 não tinham mais de 8 anos de funcionamento. 
 
 
 ```{r}
@@ -141,10 +135,9 @@ table(year(analise_survive$data_inicio_atividade),
 
 A empresa com o maior tempo de registro iniciou as atividades em 1956, dando baixa em 2010. Foram 56 anos de cnpj ativo.(Por curiosidade, na pesquisa consta o nome fantasia *Armazem dois irmãos*).
 
-
 # Onde as empresas fecharam
 
-O estado do Piauí é uma UF que possui um polo econômico destacado em toda sua área. A capital Teresina possui 46% dos CNPJ's cadastrados, e os outros 54% são divididos entre os 223 municípios restantes. A capital é mundo a parte e, depedendo da pesquisa, precisa ser trabalhada de forma isolada por causa da discrepância dos números comparado a todas as cidades do interior reunidas. 
+O estado do Piauí é uma UF que possui um polo econômico destacado em toda sua área. A capital, Teresina, possui 46% dos CNPJ's cadastrados, e os outros 54% são divididos entre os 223 municípios restantes. A capital é mundo a parte e, depedendo da pesquisa, precisa ser trabalhada de forma isolada por causa da discrepância dos números comparado a todas as cidades do interior reunidas. 
 
 
 ```{r}
@@ -159,7 +152,7 @@ all_mun_pi <- read_municipality(code_muni=22, year=2018)
 dates_pi = analise_survive|>
             group_by(id_municipio)|>
             summarise("Quantidade" = n())|>
-            dplyr::mutate("Percentual" = Quantidade*100/sum(Quantidade))|>
+            dplyr::mutate("Percentual" = percent(Quantidade/sum(Quantidade)))|>
             #dplyr::rename("code_muni" = "id_municipio")|>
             dplyr::left_join(all_mun_pi, by=c("id_municipio"= "code_muni"))
 
@@ -176,14 +169,11 @@ labs(title= "Empresas Fechadas: 2010 - 2022",
 theme_bw()
 ```
 
-Teresina foi responsável por 43,83% das empresas fechadas, em segundo lugar está Parnaíba com 6,3%. Ao lermos a tabela, percebemos que somente as 10 primeiras cidade ultrapassam 1% do total das empresas com baixa registral. 
-
+Teresina foi responsável por 44,79% das empresas fechadas, em segundo lugar está Parnaíba com 6,35%. Ao lermos a tabela, percebemos que somente as 10 primeiras cidade ultrapassam 1% do total das empresas com baixa registral. 
 
 ## Top 10
 
 ```{r}
-dates_pi$Percentual = round(dates_pi$Percentual, 2)
-
 dates_pi|>
   dplyr::select(name_muni, Quantidade, Percentual)|>
   dplyr::arrange(desc(Quantidade))|>
@@ -199,10 +189,48 @@ dates_pi|>
   tail(10)|>knitr::kable()
 ```
 
+## Análise de Teresina
+
+```{r}
+analise_survive|>
+  filter(id_municipio == 2211001)|>
+  dplyr::mutate(bairro = stringi::stri_trans_general(str = bairro, id = "Latin-ASCII"))|> # remove acentos
+  dplyr::mutate(bairro = str_trim(bairro, "right"),# remove espaços a direita
+                bairro = str_trim(bairro, "left"))|> # remove espaços a esqueda
+  dplyr::mutate(Região = fct_lump(bairro ,10, other_level = "Outras"))|>
+  count(Região)|>
+  arrange(desc(n))|>
+  dplyr::rename(Quantidade = n)|>
+  knitr::kable()
+```
+
+
+
+```{r}
+bairros = "bairros.xlsx"|>
+          readxl::read_xlsx()|>
+          dplyr::mutate(Bairro = stringi::stri_trans_general(str = Bairro, id = "Latin-ASCII"), # remove acentos,
+                        Bairro = str_trim(Bairro, "right"),# remove espaços a direita
+                        Bairro = str_trim(Bairro, "left"), # remove espaço a esquerda
+                        Bairro = toupper(Bairro)) # bota todas as letras em caixas alta
+
+empresa_bairro_the = analise_survive|>
+                      filter(id_municipio == 2211001)|>
+                      dplyr::mutate(bairro = stringi::stri_trans_general(str = bairro, id = "Latin-ASCII"), # remove acentos
+                                    bairro = str_trim(bairro, "right"),# remove espaços a direita
+                                    bairro = str_trim(bairro, "left"))|> # remove espaços a esqueda
+                      dplyr::left_join(bairros, by = c("bairro" = "Bairro"))|>
+                      dplyr::distinct()|>
+                      drop_na(Região)|> #6643 NA's
+                      count(Região)|>
+                      dplyr::mutate(prop = percent(n/sum(n)))
+
+empresa_bairro_the|>knitr::kable()
+```
 
 # Tipo de empreendimentos fechados. 
 
-Uma informação importante é qual o tipo de empreendimento está fechando, dessa forma, podemos conhecer qual tipo de mercado mais sofre com os fechamentos. No Brasil, há o CNAE - Classificação Nacional de Atividades Econômicas - que determina a área de atuação da atividade empresarial, ou seja, é um código que atribui um conjunto de atividades desempenhadas pelo empresário. No gráfico a seguir, temos que o comercio varejista é o mais afetado com a descontinuidade dos empreendimentos, seguido peo ramo alimenticío. 
+Uma informação importante é qual o tipo de empreendimento está fechando, dessa forma, podemos conhecer qual tipo de mercado mais sofre com os fechamentos. No Brasil, há o CNAE - Classificação Nacional de Atividades Econômicas - que determina a área de atuação da atividade empresarial, ou seja, é um código que atribui um conjunto de atividades desempenhadas pela empresa. No gráfico a seguir, temos que o comercio varejista é o mais afetado com a descontinuidade dos empreendimentos, seguido peo ramo alimenticío. 
 
 
 ```{r}
@@ -259,21 +287,18 @@ analise_survive|>
             )
 ```
 
-
-
-Em relação a classificação outros, é importante descatacar que existe muitas classificações e muitas, algumas vezes, possuem somente uma empresa cadastrada, gerando uma lista muito grande. No gráfico acima, temos as 11 classificações mais comuns, e correspondem a 79% de todos os comercios varejista. 
+Em relação a classificação outros, é importante descatacar que existe muitas classificações e a maioria possui somente uma empresa cadastrada, gerando uma lista muito grande. No gráfico acima, temos as 11 classificações mais comuns, e correspondem a 79% de todos os comercios varejista. 
 
 # Capital Social
 
-problema: 12.306 empresas com capital social de valor 0
+Uma variável importante que podemos utilizar para entender a sobreviência das empresas é o capital social das empresas. A variável financeira indica porte de capital que as empresas possuem. 
 
 ```{r}
-analise_survive|>
-    left_join(empresas, "cnpj_basico")|>#View()
-    #dplyr::filter(capital_social > 50)|>
+analise_survive = analise_survive|>
     dplyr::mutate(capital_social_cat = cut(capital_social/1e3, 
-                                           breaks = c(0, 1e3, 1e4, 1e5, 1e6, Inf)/1e3,
-                                           include.lowest = TRUE, dig.lab = 10))|>
+                                           breaks = c(0, 5e2, 1e3, 5e3, 1e4, 1e5, 1e6, Inf)/1e3,
+                                           include.lowest = TRUE, dig.lab = 10))
+analise_survive|>
     count(tipo = capital_social_cat) |>
     dplyr::mutate(prop = percent(n/sum(n)),
                   tipo = fct_rev(tipo))|>
@@ -286,21 +311,9 @@ analise_survive|>
          y = "Quantidade de empresas (milhares)")
 ```
 
-# Porte a empresa 
+Identificamos que 44% das empresas possuem um capital social até 500 reais, o que indica que as empresas que mais fecham são empresas pequeno porte, de microempreendedores e pequenas empresas. Reunindo as empresas com capital até 5000 reais, temos 69,05% das empresas. 
 
-- 01: Micro empresa
-- 03: Empresa se pequeno Porte
-- 05: Demais
-
-```{r}
-analise_survive|>
-    left_join(empresas, "cnpj_basico")|>#View()
-    ggplot(aes(porte))+
-    geom_bar(fill = "gold")+
-    theme_minimal(14) +
-    labs(x = "Porte", 
-         y = "´Quantidade de Empresas")
-```
+Com essas informações, pode-se indicar que este trabalho tem, em sua grande maioria, empresas pequenas, que possuem uma menor resistência as alterações e a volatividade de mercado. 
 
 
 # Variáveis
@@ -309,25 +322,21 @@ As variáveis que iremos utilizar para medir o tempo de funcionamento das empres
 
 - Localização: interior ou capital
 - Tipo de empreendimento: baseado na CNAE
-- Capital Social da empresa. 
+
+Como temos podemos enxergar na tabela abaixo:
 
 ```{r}
 df = analise_survive|>
-      left_join(empresas, "cnpj_basico")|>
       left_join(cnae, by = c("cnae_fiscal_principal" = "cod_cnae" ))|>
       dplyr::mutate(
         censura = ifelse(data_situacao_cadastral == '2018-02-01' | 
                                 data_situacao_cadastral == '2015-02-09', 0, 1),
         Região = case_when(id_municipio == 2211001 ~ "Capital",
                                       id_municipio != 2211001 ~ "Interior"),
-                    capital_social_cat = cut(capital_social/1e3, 
-                                           breaks = c(0, 1e3, 1e4, 1e5, 1e6, Inf)/1e3,
-                                           include.lowest = TRUE, dig.lab = 10),
                     Periodo = lubridate::interval(data_inicio_atividade, 
                                                   data_situacao_cadastral)/years(1),
                     Periodo = round(Periodo, 0))|>
-      dplyr::select(cnpj_basico, Região, capital_social, capital_social_cat, nm_grupo, nm_classe,
-                    Periodo, censura)
+      dplyr::select(cnpj_basico, Região, nm_classe, Periodo, censura)
 
 df|>  
   head(10)|>
@@ -335,25 +344,29 @@ df|>
   kableExtra::kable_minimal()
 ```
 
+Para entender as dinstinção entre grupos das variáveis que estamos trabalhando, apresentamos algumas medidas descritivas 
+
 ## Região
 
 ```{r}
 df|>
   group_by(Região)|>
-  summarise(Empresas = n(), Media = round(mean(Periodo),2), Mediana = median(Periodo))
+  summarise(Empresas = n(), Media = round(mean(Periodo),2), 
+                            Mediana = median(Periodo))|>
+  knitr::kable()
 ```
 
-## CApital Social
+## Capital Social
 
 
 ```{r}
-df|>
-  dplyr::filter(capital_social > 0)|>
-  group_by(capital_social_cat)|>
-  summarise(Empresas = n(), Media = round(mean(Periodo),2), Mediana = median(Periodo))
+#df|>
+ # dplyr::filter(capital_social > 0)|>
+ #group_by(capital_social)|>
+ #summarise(Empresas = n(), Media = round(mean(Periodo),2), Mediana = median(Periodo))
 ```
-## Tipo de empreendimento
 
+## Tipo de empreendimento
 
 ```{r}
 df|>
@@ -373,7 +386,7 @@ library(survminer)
 df1 = df|>
   dplyr::filter(nm_classe == "Comércio varejista de artigos do vestuário e acessórios")
 
-km = survfit(Surv(Periodo, censura) ~ 1, df1)
+km = survfit(Surv(Periodo, censura) ~ nm_classe, df1)
 summary(km)
 ```
 

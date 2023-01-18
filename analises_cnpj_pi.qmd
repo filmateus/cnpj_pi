@@ -45,7 +45,7 @@ library(sf)
 
 ```{r}
 # carregando os arquivos
-empresas = read.csv('bq-empresas.csv')
+empresas = read.csv('empresas_pi.csv')
 #filtrando para retirar entidades públicas e candicadatos
 nat_jud = qsacnpj::tab_natureza_juridica
 nat_jud$cod_subclass_natureza_juridica = as.numeric(nat_jud$cod_subclass_natureza_juridica)
@@ -54,14 +54,13 @@ empresas = empresas|>
         dplyr::filter(nm_natureza_juridica %in% c("Entidades Empresariais"))|>
         dplyr::distinct()
 
-estabelecimentos = read.csv('bq-estabelicimentos.csv')
+estabelecimentos = read.csv("estabelecimentos_pi.csv")
 estabelecimentos = estabelecimentos|>
     dplyr::semi_join(empresas, by = "cnpj_basico")
 
 socios = read.csv('bq-socios.csv')
 # qsacnpj::tab_cnpj_entes_publicos_br
 responsvel = qsacnpj::tab_qualificacao_responsavel_socio
-sit_cad = qsacnpj::tab_situacao_cadastral
 nat_jud = qsacnpj::tab_natureza_juridica
 empresas_pi_atual = estabelecimentos|>
                 dplyr::filter(situacao_cadastral == 2,
@@ -246,7 +245,7 @@ all_mun_pi <- read_municipality(code_muni=22, year=2018)
 dates_pi = empresas_pi_atual|>
             group_by(id_municipio)|>
             summarise("Quantidade" = n())|>
-            dplyr::mutate("Percentual" = percent(Quantidade*100/sum(Quantidade)))|>
+            dplyr::mutate("Percentual" = Quantidade*100/sum(Quantidade))|>
             #dplyr::rename("code_muni" = "id_municipio")|>
             dplyr::left_join(all_mun_pi, by=c("id_municipio"= "code_muni"))
 
