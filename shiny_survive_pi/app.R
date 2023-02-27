@@ -7,47 +7,43 @@ library(sf)
 library(shinythemes)
 library(plotly)
 
-# tabelas com os códigos e tipos de empresas - 
-nat_jud = qsacnpj::tab_natureza_juridica
-nat_jud$cod_subclass_natureza_juridica = as.numeric(nat_jud$cod_subclass_natureza_juridica)
-
-# carregando tabela com as empresas filtrando para empresas que fecharam após 2009
-empresas = read.csv('empresas_pi.csv')|>
-  dplyr::left_join(nat_jud, 
-                   by = c("natureza_juridica" = "cod_subclass_natureza_juridica"))|>
-  dplyr::filter(nm_natureza_juridica %in% c("Entidades Empresariais"))|>
-  dplyr::distinct()
-
 # tabela com as atividades fim das empresas
 cnae = qsacnpj::tab_cnae
 cnae$cod_cnae = as.integer(cnae$cod_cnae)
 
-# tabela final com as informações principais
-df =  read.csv("estabelecimentos_pi.csv")|>
-  dplyr::semi_join(empresas, by = "cnpj_basico")|>
-  dplyr::filter(identificador_matriz_filial == 1)|>
-  left_join(cnae, by = c("cnae_fiscal_principal" = "cod_cnae" ))|>
+df = read.csv("file_dash.csv")|>
+  dplyr::left_join(cnae, by = c("cnae_fiscal_principal" = "cod_cnae" ))|>
   dplyr::mutate(
-    Censura = ifelse(data_situacao_cadastral == '2018-02-01'| 
-                    data_situacao_cadastral == '2015-02-09'|
-                    data_situacao_cadastral == "2008-12-31", 0, 1),
-    Censura = ifelse(data_situacao_cadastral != 8 & 
-                       data_inicio_atividade == data_situacao_cadastral, 0, 1),
-    Periodo = ifelse(data_inicio_atividade != data_situacao_cadastral &
-                     data_situacao_cadastral != 8,
-        lubridate::interval(data_inicio_atividade, data_situacao_cadastral)/months(1),
-        lubridate::interval(data_inicio_atividade, '2022-12-31')/months(1)),
-    Periodo = round(Periodo, 0),
     Região = ifelse(id_municipio == 2211001, "Capital", "Interior"),
+    Censura = ifelse(situacao_cadastral == 2, 0, 1),
+    Periodo = ifelse(data_inicio_atividade != data_situacao_cadastral &
+                       data_situacao_cadastral != 2,
+                     lubridate::interval(data_inicio_atividade, 
+                                         data_situacao_cadastral)/months(1),
+                     lubridate::interval(data_inicio_atividade, 
+                                         '2022-12-31')/months(1)),
+    Periodo = round(Periodo, 0),
     Ano = lubridate::year(data_situacao_cadastral))|>
   dplyr::filter(is.na(Periodo) == FALSE,
                 is.na(nm_classe) == FALSE,
-                Periodo >=1)|>
-  dplyr::select(cnpj_basico, nm_classe, Periodo, Censura, Região, Ano)
+                Periodo >=1)
+
+
+#df$Censura[df$situacao_cadastral == "8" & df$data_situacao_cadastral == "2008-12-31"] = 0
+#df$Censura[df$situacao_cadastral == "8" & df$data_situacao_cadastral == "2018-02-01"] = 0
+#df$Censura[df$situacao_cadastral == "8" & df$data_situacao_cadastral == "2015-02-09"] = 0
+
+# tabela com as empresas por classe de atividade
+df_tipos = df|>
+  dplyr::filter(situacao_cadastral == 8)|>
+  group_by(nm_classe)|>
+  summarise(Empresas = n(), "Média mensal" = round(mean(Periodo),2),
+            "Média anual"= c(round(`Média mensal`/12,2)),  Mediana = median(Periodo))|>
+  dplyr::rename(Classes = nm_classe)|>
+  dplyr::arrange(desc(Empresas))
 
 
 list_distribution = c("exponential", "weibull", "lognorm", "gompertz")
-
 
 # survive distribution
 exp_surv = function(time, alpha){
@@ -70,8 +66,6 @@ gompertz_surv = function(time, alpha_g, beta_g){
   return(x)
 }
 
-
-
 about_page <- tabPanel(
   title = "Sobre",
   titlePanel("Sobre"),
@@ -79,7 +73,6 @@ about_page <- tabPanel(
   br(),
   "Janeiro/2023"
 )
-
 
 main_page = tabPanel(
   title = "Empresas",
@@ -95,16 +88,20 @@ main_page = tabPanel(
                   'Região:', 
                   choices = c("Piauí", sort(unique(df$Região),  decreasing = FALSE))
       ),
+      selectInput('ano', 
+                  'Década de ínicio para análise:', 
+                  choices = c(seq(1950, 2020, 10),  decreasing = FALSE)
+      ),
       checkboxInput(
         'conf_int',
         'Intervalo de Confiaça no Gráfico',
         value = FALSE
       ),
-      checkboxGroupInput(
-        'list_dist',
-        'Distribuições:',
-        list_distribution,
-        selected  = list_distribution),
+      #checkboxGroupInput(
+       # 'list_dist',
+        #'Distribuições:',
+        #list_distribution,
+        #selected  = list_distribution),
       
       tags$p(HTML("<b>Informações do banco de Dados:</b>")),
       tags$p(HTML("Os dados utilizados foram coletados no
@@ -113,29 +110,33 @@ main_page = tabPanel(
     mainPanel(
       tabsetPanel(
         tabPanel(
-          title = "Tabela Kaplan-Meier",
-          verbatimTextOutput("tabela_kme")
-                ), 
+          title = "Empresas",
+          DT::dataTableOutput("tabela_tipo")
+                ),
+        tabPanel(
+          title = "Kaplan-Meier",
+          DT::dataTableOutput("tabela_kme")
+                ),
         tabPanel(
           title = "Gráfico de Sobrevivência ",
           plotOutput("grafico_sobrevivência")
                 ),
         tabPanel(
-         title = "Saida Distribuições",
-         verbatimTextOutput("table_survive")
-               ),
-        tabPanel(
-          title = "tabela das distribuições",
-          verbatimTextOutput("table_survive2")
-                ),
-        tabPanel(
-          title = "Comparação das distribuições",
-          plotly::plotlyOutput("dist_survive"))
+         title = "Comparação Capital e Interior",
+         plotOutput("cap_int")
+               )
+        #,tabPanel(
+         # title = "Cidades de fechamento",
+          #plotlyOutput("city_closed")
+                #)
+        #,tabPanel(
+         # title = "Comparação das distribuições",
+        #  plotly::plotlyOutput("dist_survive"))
           
       )
      )
     )
-  )
+   )
 
 
 ui <- navbarPage(
@@ -149,35 +150,52 @@ ui <- navbarPage(
 server <- function(input, output, session){
    selectedData <- reactive({
       if(input$regiao == 'Piauí'){
-        df[(df$nm_classe == input$tipo_empresas),]
+        df[(df$nm_classe == input$tipo_empresas & df$Ano >= input$ano),]
      }else{
-        df[(df$nm_classe == input$tipo_empresas) & df$Região == input$regiao,]
+        df[(df$nm_classe == input$tipo_empresas & df$Ano >= input$ano) & df$Região == input$regiao,]
      }
+   })
+
+   output$tabela_tipo = DT::renderDataTable({
+                        DT::datatable(df_tipos, options = list(orderClasses = TRUE))
    })
   
    km = reactive({
-    survival::survfit(survival::Surv(Periodo,Censura) ~ nm_classe, data = selectedData())
+    survival::survfit(survival::Surv(Periodo,Censura) ~ 1, data = selectedData())
    })
    
 
-   output$tabela_kme = renderPrint({list(
-                                 "Medidas" = km(),
-                                 "Tabela"  =  summary(km())
-                                        )
+   output$tabela_kme = DT::renderDataTable({
+                       DT::datatable(
+                                    data.frame(
+                                   "Empresas em risco" = c(km()[[3]]),
+                                   "Tempo(Mês)" = c(km()[[2]]),
+                                   'Tempo(Anos)' = c(round(km()[[2]]/12,2)),
+                                   "Empresas fechadas" = c(km()[[4]]),
+                                    Sobrevivência = c(round(km()[[6]],4)),
+                                    check.names = FALSE), filter = 'top')
   })
-  
-   output$grafico_sobrevivência = renderPlot({survminer::ggsurvplot(km(), 
-                                data = selectedData(),  conf.int=input$conf_int, ggtheme = theme_bw(),
-                                legend.title = sprintf("Gráfico para % s no(a) % s", input$tipo_empresas, input$regiao))})
    
+   output$grafico_sobrevivência = renderPlot({survminer::ggsurvplot(km(),
+                                data = selectedData(),  conf.int=input$conf_int,ggtheme = theme_bw(),
+                                legend.title = sprintf("Gráfico para % s no(a) % s",
+                                                       input$tipo_empresas, 
+                                                       input$regiao))})
+   
+   
+   km2 = reactive({
+     survival::survfit(survival::Surv(Periodo,Censura) ~ Região, data = selectedData())
+   })
+   
+   output$cap_int = renderPlot({survminer::ggsurvplot(km2(),  data = selectedData(),
+                                                      conf.int=input$conf_int,ggtheme = theme_bw(),
+                                                      legend.title = sprintf("Gráfico Comparativo Capital e Interior de % s",input$tipo_empresas))})
    
    dist_param = reactive({
      estatics = list()
         for(i in list_distribution){
           estatics[[i]] = flexsurv::flexsurvreg(survival::Surv(Periodo,Censura) ~ 1, 
                                                data = selectedData(), dist = i)
-           
-       
      }
      estatics
 })
@@ -201,15 +219,13 @@ server <- function(input, output, session){
                                           values_to = "Probabilidades")
      })
     
-   output$table_survive2 = renderPrint({
-     data_survive()
-    })
+   #output$table_survive2 = renderPlotly({ })
    
-   output$dist_survive = renderPlotly({
-       plotly::plot_ly(data_survive(), x = ~Probabilidades, y = ~KME, color = ~Distribuições, type = 'scatter', mode = 'dots')|>
-       plotly::add_segments(x = 0, xend = 1, y = 0, yend = 1, line = list(color = 'black'),
-                            inherit = FALSE, showlegend = FALSE)
-     })
+  # output$dist_survive = renderPlotly({
+   #    plotly::plot_ly(data_survive(), x = ~Probabilidades, y = ~KME, color = ~Distribuições, type = 'scatter', mode = 'dots')|>
+    #   plotly::add_segments(x = 0, xend = 1, y = 0, yend = 1, line = list(color = 'black'),
+     #                       inherit = FALSE, showlegend = FALSE)
+     #})
    
    
 }
