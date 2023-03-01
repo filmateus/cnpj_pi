@@ -28,7 +28,7 @@ for(i in files){
 
 # Selecionando as empresas do Piaui de cada arquivo
 df1 = list_estabelecimentos$K3241.K03200Y0.D21217.ESTABELE.csv|>
-      dplyr::filter(V20 == "PI")
+    dplyr::filter(V20 == "PI")
 
 df2 = list_estabelecimentos$K3241.K03200Y1.D21217.ESTABELE.csv|>
   dplyr::filter(V20 == "PI")
@@ -96,8 +96,9 @@ estabelecimentos|>
                 data_situacao_especial = V30)|>
   dplyr::left_join(id_municipios, by = "id_municipio_rf")|> #identificando os códigos do municipio IBGE
   dplyr::mutate(data_inicio_atividade = lubridate::ymd(data_inicio_atividade),# transformando as variáveis de data
-                data_situacao_cadastral = lubridate::ymd(data_situacao_cadastral))|>
-  write.csv("estabelecimentos_pi.csv")
+                data_situacao_cadastral = lubridate::ymd(data_situacao_cadastral))
+  
+write.csv("estabelecimentos_pi.csv")
 
 # excluindo os arquios que não serão mais necessários. 
 rm(list_estabelecimentos, df1, df2, df3, df4, df5, df6, df7, df8, df9, df10)
@@ -140,9 +141,25 @@ empresas_pi|>
                 natureza_juridica = V3,
                 capital_social = V5,
                 porte = V6,
-                ente_federativo = V7)|>
-  write.csv("empresas_pi.csv")
+                ente_federativo = V7)
 
 # exlcuindo os arquivos.
 rm(empresas, empresa_0, empresa_1, empresa_2, empresa_3, empresa_4, empresa_5,
    empresa_6, empresa_7, empresa_8, empresa_9)
+
+
+nat_jud = qsacnpj::tab_natureza_juridica
+nat_jud$cod_subclass_natureza_juridica = as.numeric(nat_jud$cod_subclass_natureza_juridica)
+
+# salvando arquivo final com as informações que usados no dash
+estabelecimentos|>
+  dplyr::inner_join(empresas_pi, by = "cnpj_basico")|>
+  dplyr::filter(identificador_matriz_filial == 1 &
+                  situacao_cadastral == 2 | situacao_cadastral == 8)|>
+  dplyr::left_join(nat_jud, 
+                   by = c("natureza_juridica" = "cod_subclass_natureza_juridica"))|>
+  dplyr::filter(nm_natureza_juridica %in% c("Entidades Empresariais"))|>
+  dplyr::select(cnpj_basico, situacao_cadastral, id_municipio,  data_inicio_atividade,
+                cnae_fiscal_principal, natureza_juridica, data_situacao_cadastral)|>
+  write.csv("file_dash.csv")
+

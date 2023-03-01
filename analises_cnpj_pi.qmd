@@ -45,7 +45,7 @@ library(sf)
 
 ```{r}
 # carregando os arquivos
-empresas = read.csv('empresas_pi.csv')
+empresas = read.csv("empresas_pi.csv", dec = ",")
 #filtrando para retirar entidades públicas e candicadatos
 nat_jud = qsacnpj::tab_natureza_juridica
 nat_jud$cod_subclass_natureza_juridica = as.numeric(nat_jud$cod_subclass_natureza_juridica)
@@ -54,9 +54,8 @@ empresas = empresas|>
         dplyr::filter(nm_natureza_juridica %in% c("Entidades Empresariais"))|>
         dplyr::distinct()
 
-estabelecimentos = read.csv("estabelecimentos_pi.csv")
-estabelecimentos = estabelecimentos|>
-    dplyr::semi_join(empresas, by = "cnpj_basico")
+estabelecimentos = read.csv("estabelecimentos_pi.csv")|>
+                   dplyr::semi_join(empresas, by = "cnpj_basico")
 
 socios = read.csv('bq-socios.csv')
 # qsacnpj::tab_cnpj_entes_publicos_br
@@ -77,7 +76,7 @@ inicio_atividade = estabelecimentos|>
     dplyr::mutate(mes_atividade = floor_date(data_inicio_atividade, "quarter"),
                   ano_atividade = floor_date(data_inicio_atividade, "year"))|>
     dplyr::filter(mes_atividade >= "1954-01-01", 
-                 mes_atividade <= "2022-10-01")|>
+                 mes_atividade <= "2022-12-01")|>
     count(ano_atividade)|>
     dplyr::mutate(mes_atividade = ano_atividade)|>
     filter(year(mes_atividade) >= 1963,
@@ -90,7 +89,7 @@ fim_atividade = estabelecimentos|>
     dplyr::mutate(mes_atividade = floor_date(data_situacao_cadastral, "quarter"),
                   ano_atividade = floor_date(data_situacao_cadastral, "year"))|>
     dplyr::filter(mes_atividade >= "1954-01-01", 
-                 mes_atividade <= "2022-10-01")|>
+                 mes_atividade <= "2022-12-01")|>
     count(ano_atividade)|>
     dplyr::mutate(mes_atividade = ano_atividade)|>
     filter(year(mes_atividade) >= 1963,

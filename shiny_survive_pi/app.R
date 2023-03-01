@@ -86,11 +86,15 @@ main_page = tabPanel(
       ),
       selectInput('regiao', 
                   'Região:', 
-                  choices = c("Piauí", sort(unique(df$Região),  decreasing = FALSE))
+                  choices = c("Piauí", sort(unique(df$Região)))
       ),
       selectInput('ano', 
-                  'Década de ínicio para análise:', 
-                  choices = c(seq(1950, 2020, 10),  decreasing = FALSE)
+                  'Ano inicial para análise:', 
+                  choices = c(seq(1950, 2020, 10))
+      ),
+      selectInput('fim', 
+                  'Ano final para análise:', 
+                  choices = c(2022,seq(1950, 2021, 1))
       ),
       checkboxInput(
         'conf_int',
@@ -105,7 +109,13 @@ main_page = tabPanel(
       
       tags$p(HTML("<b>Informações do banco de Dados:</b>")),
       tags$p(HTML("Os dados utilizados foram coletados no
-                  site da Receita Federal")) 
+                  site da Receita Federal. Para compreender melhor sobre o assunto, 
+                  acesse <a href='https://rpubs.com/filipe26/sobrevivencia_pi'>aqui!</a>")),
+      tags$p(HTML("O primeiro painel contém a tabela Empresas que consiste numa relação da 
+                  quantidade de empresas por tipo de atividade e 3 medidas descritivas")),
+      tags$p(HTML("O segundo painel consiste na distribuição de Kaplan-Meier adaptada para esta pesquisa e 
+                  no Gráfico de sobrevivênvia contém a mesma tabela, mas de forma gráfica")),
+      tags$p(HTML("Por último, temos a distinção, entre a capital e o interior, de tempo das empresas")),
     ),
     mainPanel(
       tabsetPanel(
@@ -150,9 +160,9 @@ ui <- navbarPage(
 server <- function(input, output, session){
    selectedData <- reactive({
       if(input$regiao == 'Piauí'){
-        df[(df$nm_classe == input$tipo_empresas & df$Ano >= input$ano),]
+        df[(df$nm_classe == input$tipo_empresas & df$Ano >= input$ano & df$Ano <= input$fim),]
      }else{
-        df[(df$nm_classe == input$tipo_empresas & df$Ano >= input$ano) & df$Região == input$regiao,]
+        df[(df$nm_classe == input$tipo_empresas & df$Ano >= input$ano & df$Ano <= input$fim) & df$Região == input$regiao,]
      }
    })
 
