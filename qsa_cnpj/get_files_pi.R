@@ -147,6 +147,7 @@ empresas_pi =empresas_pi|>
 rm(empresas, empresa_10, empresa_1, empresa_2, empresa_3, empresa_4, empresa_5,
    empresa_6, empresa_7, empresa_8, empresa_9)
 
+write.csv("empresas_pi.csv")
 
 nat_jud = qsacnpj::tab_natureza_juridica
 nat_jud$cod_subclass_natureza_juridica = as.numeric(nat_jud$cod_subclass_natureza_juridica)
