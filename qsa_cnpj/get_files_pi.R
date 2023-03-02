@@ -27,35 +27,35 @@ for(i in files){
 }
 
 # Selecionando as empresas do Piaui de cada arquivo
-df1 = list_estabelecimentos$K3241.K03200Y0.D21217.ESTABELE.csv|>
+df1 = list_estabelecimentos[[1]]|>
     dplyr::filter(V20 == "PI")
 
-df2 = list_estabelecimentos$K3241.K03200Y1.D21217.ESTABELE.csv|>
-  dplyr::filter(V20 == "PI")
+df2 = list_estabelecimentos[[2]]|>
+    dplyr::filter(V20 == "PI")
 
-df3 = list_estabelecimentos$K3241.K03200Y2.D21217.ESTABELE.csv|>
-  dplyr::filter(V20 == "PI")
+df3 = list_estabelecimentos[[3]]|>
+    dplyr::filter(V20 == "PI")
 
-df4 = list_estabelecimentos$K3241.K03200Y3.D21217.ESTABELE.csv|>
-dplyr::filter(V20 == "PI")
+df4 = list_estabelecimentos[[4]]|>
+    dplyr::filter(V20 == "PI")
   
-df5 = list_estabelecimentos$K3241.K03200Y4.D21217.ESTABELE.csv|>
-dplyr::filter(V20 == "PI")
+df5 = list_estabelecimentos[[5]]|>
+    dplyr::filter(V20 == "PI")
 
-df6 = list_estabelecimentos$K3241.K03200Y5.D21217.ESTABELE.csv|>
-dplyr::filter(V20 == "PI")
+df6 = list_estabelecimentos[[6]]|>
+    dplyr::filter(V20 == "PI")
 
-df7 = list_estabelecimentos$K3241.K03200Y6.D21217.ESTABELE.csv|>
-dplyr::filter(V20 == "PI")
+df7 = list_estabelecimentos[[7]]|>
+    dplyr::filter(V20 == "PI")
 
-df8 = list_estabelecimentos$K3241.K03200Y7.D21217.ESTABELE.csv|>
-dplyr::filter(V20 == "PI")
+df8 = list_estabelecimentos[[8]]|>
+    dplyr::filter(V20 == "PI")
 
-df9 = list_estabelecimentos$K3241.K03200Y8.D21217.ESTABELE.csv|>
-dplyr::filter(V20 == "PI")
+df9 = list_estabelecimentos[[9]]|>
+    dplyr::filter(V20 == "PI")
 
-df10 = list_estabelecimentos$K3241.K03200Y9.D21217.ESTABELE.csv|>
-dplyr::filter(V20 == "PI")
+df10 = list_estabelecimentos[[10]]|>
+    dplyr::filter(V20 == "PI")
 
 # jutando os arquivos
 estabelecimentos = rbind(df1, df2, df3, df4, df5, df6, df7, df8, df9, df10)
@@ -63,7 +63,7 @@ estabelecimentos = rbind(df1, df2, df3, df4, df5, df6, df7, df8, df9, df10)
 # renomeando as variáveis
 id_municipios = read.csv("id_municipios.csv")
 
-estabelecimentos|>
+estabelecimentos = estabelecimentos|>
   dplyr::rename(cnpj_basico = V1,
                 cnpj_ordem = V2,
                 cnpj_dv = V3,
@@ -118,23 +118,23 @@ for(i in list_empresas){
 cnpj_basico = as.vector(estabelecimentos$V1)
 
 # filtrando os arquivos para pegar somente as empresas do piaui
-empresa_0 = subset(empresas$K3241.K03200Y0.D21217.EMPRECSV.csv, V1 %in% cnpj_basico)
-empresa_1 = subset(empresas$K3241.K03200Y1.D21217.EMPRECSV.csv, V1 %in% cnpj_basico)
-empresa_2 = subset(empresas$K3241.K03200Y2.D21217.EMPRECSV.csv, V1 %in% cnpj_basico)
-empresa_3 = subset(empresas$K3241.K03200Y3.D21217.EMPRECSV.csv, V1 %in% cnpj_basico)
-empresa_4 = subset(empresas$K3241.K03200Y4.D21217.EMPRECSV.csv, V1 %in% cnpj_basico)
-empresa_5 = subset(empresas$K3241.K03200Y5.D21217.EMPRECSV.csv, V1 %in% cnpj_basico)
-empresa_6 = subset(empresas$K3241.K03200Y6.D21217.EMPRECSV.csv, V1 %in% cnpj_basico)
-empresa_7 = subset(empresas$K3241.K03200Y7.D21217.EMPRECSV.csv, V1 %in% cnpj_basico)
-empresa_8 = subset(empresas$K3241.K03200Y8.D21217.EMPRECSV.csv, V1 %in% cnpj_basico)
-empresa_9 = subset(empresas$K3241.K03200Y9.D21217.EMPRECSV.csv, V1 %in% cnpj_basico)
+empresa_1 = subset(empresas[[1]], V1 %in% cnpj_basico)
+empresa_2 = subset(empresas[[2]], V1 %in% cnpj_basico)
+empresa_3 = subset(empresas[[3]], V1 %in% cnpj_basico)
+empresa_4 = subset(empresas[[4]], V1 %in% cnpj_basico)
+empresa_5 = subset(empresas[[5]], V1 %in% cnpj_basico)
+empresa_6 = subset(empresas[[6]], V1 %in% cnpj_basico)
+empresa_7 = subset(empresas[[7]], V1 %in% cnpj_basico)
+empresa_8 = subset(empresas[[8]], V1 %in% cnpj_basico)
+empresa_9 = subset(empresas[[9]], V1 %in% cnpj_basico)
+empresa_10 = subset(empresas[[10]], V1 %in% cnpj_basico)
 
 # juntando os arquivos
-empresas_pi = rbind(empresa_0, empresa_1, empresa_2, empresa_3, empresa_4, empresa_5,
+empresas_pi = rbind(empresa_10, empresa_1, empresa_2, empresa_3, empresa_4, empresa_5,
                     empresa_6, empresa_7, empresa_8, empresa_9)
 
 # renomeando as variáveis salvando o arquivos
-empresas_pi|>
+empresas_pi =empresas_pi|>
   dplyr::rename(cnpj_basico = V1,
                 razao_social = V2,
                 qualificacao_responsavel = V4,
@@ -144,7 +144,7 @@ empresas_pi|>
                 ente_federativo = V7)
 
 # exlcuindo os arquivos.
-rm(empresas, empresa_0, empresa_1, empresa_2, empresa_3, empresa_4, empresa_5,
+rm(empresas, empresa_10, empresa_1, empresa_2, empresa_3, empresa_4, empresa_5,
    empresa_6, empresa_7, empresa_8, empresa_9)
 
 
