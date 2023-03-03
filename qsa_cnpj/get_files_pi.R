@@ -63,7 +63,7 @@ estabelecimentos = rbind(df1, df2, df3, df4, df5, df6, df7, df8, df9, df10)
 # renomeando as variáveis
 id_municipios = read.csv("id_municipios.csv")
 
-estabelecimentos = estabelecimentos|>
+estabelecimentos|>
   dplyr::rename(cnpj_basico = V1,
                 cnpj_ordem = V2,
                 cnpj_dv = V3,
@@ -96,9 +96,8 @@ estabelecimentos = estabelecimentos|>
                 data_situacao_especial = V30)|>
   dplyr::left_join(id_municipios, by = "id_municipio_rf")|> #identificando os códigos do municipio IBGE
   dplyr::mutate(data_inicio_atividade = lubridate::ymd(data_inicio_atividade),# transformando as variáveis de data
-                data_situacao_cadastral = lubridate::ymd(data_situacao_cadastral))
-  
-write.csv("estabelecimentos_pi.csv")
+                data_situacao_cadastral = lubridate::ymd(data_situacao_cadastral))|>
+  write.csv("estabelecimentos_pi.csv")
 
 # excluindo os arquios que não serão mais necessários. 
 rm(list_estabelecimentos, df1, df2, df3, df4, df5, df6, df7, df8, df9, df10)
@@ -114,52 +113,55 @@ for(i in list_empresas){
   empresas[[i]] =  load_files(i)
 }
 
-# retirando as listas dos cnpjs dos estabelecimento do Piaui
-cnpj_basico = as.vector(estabelecimentos$V1)
-
 # filtrando os arquivos para pegar somente as empresas do piaui
-empresa_1 = subset(empresas[[1]], V1 %in% cnpj_basico)
-empresa_2 = subset(empresas[[2]], V1 %in% cnpj_basico)
-empresa_3 = subset(empresas[[3]], V1 %in% cnpj_basico)
-empresa_4 = subset(empresas[[4]], V1 %in% cnpj_basico)
-empresa_5 = subset(empresas[[5]], V1 %in% cnpj_basico)
-empresa_6 = subset(empresas[[6]], V1 %in% cnpj_basico)
-empresa_7 = subset(empresas[[7]], V1 %in% cnpj_basico)
-empresa_8 = subset(empresas[[8]], V1 %in% cnpj_basico)
-empresa_9 = subset(empresas[[9]], V1 %in% cnpj_basico)
-empresa_10 = subset(empresas[[10]], V1 %in% cnpj_basico)
+empresa_1 = subset(empresas[[1]], V1 %in% estabelecimentos$V1)
+empresa_2 = subset(empresas[[2]], V1 %in% estabelecimentos$V1)
+empresa_3 = subset(empresas[[3]], V1 %in% estabelecimentos$V1)
+empresa_4 = subset(empresas[[4]], V1 %in% estabelecimentos$V1)
+empresa_5 = subset(empresas[[5]], V1 %in% estabelecimentos$V1)
+empresa_6 = subset(empresas[[6]], V1 %in% estabelecimentos$V1)
+empresa_7 = subset(empresas[[7]], V1 %in% estabelecimentos$V1)
+empresa_8 = subset(empresas[[8]], V1 %in% estabelecimentos$V1)
+empresa_9 = subset(empresas[[9]], V1 %in% estabelecimentos$V1)
+empresa_10 = subset(empresas[[10]], V1 %in% estabelecimentos$V1)
 
 # juntando os arquivos
 empresas_pi = rbind(empresa_10, empresa_1, empresa_2, empresa_3, empresa_4, empresa_5,
                     empresa_6, empresa_7, empresa_8, empresa_9)
 
 # renomeando as variáveis salvando o arquivos
-empresas_pi =empresas_pi|>
+empresas_pi|>
   dplyr::rename(cnpj_basico = V1,
                 razao_social = V2,
                 qualificacao_responsavel = V4,
                 natureza_juridica = V3,
                 capital_social = V5,
                 porte = V6,
-                ente_federativo = V7)
+                ente_federativo = V7)|>
+  write.csv("empresas_pi.csv")
 
 # exlcuindo os arquivos.
 rm(empresas, empresa_10, empresa_1, empresa_2, empresa_3, empresa_4, empresa_5,
    empresa_6, empresa_7, empresa_8, empresa_9)
-
-write.csv("empresas_pi.csv")
 
 nat_jud = qsacnpj::tab_natureza_juridica
 nat_jud$cod_subclass_natureza_juridica = as.numeric(nat_jud$cod_subclass_natureza_juridica)
 
 # salvando arquivo final com as informações que usados no dash
 estabelecimentos|>
-  dplyr::inner_join(empresas_pi, by = "cnpj_basico")|>
-  dplyr::filter(identificador_matriz_filial == 1 &
-                  situacao_cadastral == 2 | situacao_cadastral == 8)|>
+  dplyr::filter(V4 == 1 & V6 == 2 | V6 == 8)|>
+  dplyr::inner_join(empresas_pi, by = "V1")|>
   dplyr::left_join(nat_jud, 
-                   by = c("natureza_juridica" = "cod_subclass_natureza_juridica"))|>
+                   by = c("V3.y" = "cod_subclass_natureza_juridica"))|>
   dplyr::filter(nm_natureza_juridica %in% c("Entidades Empresariais"))|>
+  dplyr::rename(cnpj_basico = V1, 
+                situacao_cadastral = V6.x, 
+                id_municipio_rf = V21.x,
+                data_inicio_atividade = V11.x, 
+                cnae_fiscal_principal = V12.x, 
+                natureza_juridica = V3.y,
+                natureza_juridica = V3.y,
+                data_situacao_cadastral = V7.x)|>
   dplyr::select(cnpj_basico, situacao_cadastral, id_municipio,  data_inicio_atividade,
                 cnae_fiscal_principal, natureza_juridica, data_situacao_cadastral)|>
   write.csv("file_dash.csv")
