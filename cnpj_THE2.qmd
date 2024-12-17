@@ -1,0 +1,966 @@
+---
+title: "Análise de abertura e baixa de CNPJ's em Teresina - PI"
+format: html
+---
+
+Buscar formas de analisar o mercado de uma região é importante para o entender desenvolvimento local, tanto para o setor público, onde o estado pode praticar políticas que incentivem o comércio, quanto para o empresariado, que pode buscar formas de sobrevivência superando a dinamicidade do mercado. Esta análise, utilizando os dados da Receita Federal, calcula o tempo de existência de uma empresa através do intervalo de tempo entre a ativação do CNPJ e a sua baixa, quando houver.
+
+É importante destacar que o banco de dados apresenta problemas de preenchimento, como nomes de bairros incorretos — apenas o termo "centro" teve 10 formas diferentes de escrita — ou campos não preenchidos, resultando na perda de alguns elementos. Embora esses problemas não prejudiquem o estudo, eles impedem a obtenção de números que sejam exatamente precisos em relação à realidade.
+
+Os dados foram obtidos no site da Receita Federal e abrangem o período desde a década de 1960 até os dias atuais. Filtramos as informações para utilizar apenas os dados e não buscaremos aprofundar as as mudanças que ocorreram durante o período analisado. 
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+knitr::opts_chunk$set(
+  fig.width = 12, fig.height = 6,  # Set the width and height of the figures
+  # out.width = "100%",           # Commented: sets the output width of the figures
+  cache = TRUE,                   # Enables caching to avoid re-execution of unnecessary chunks
+  # echo = FALSE,                 # Commented: if enabled, suppresses the display of code in the report
+  message = FALSE,                # Suppresses messages generated during code execution
+  warning = FALSE,                # Suppresses warnings generated during code execution
+  hiline = TRUE,                  # Enables the display of highlight lines (not a standard knitr option)
+  cache.lazy = FALSE,             # If TRUE, loads cache only when necessary
+  fig.pos = "H"                   # Sets the position of figures in the LaTeX document (H = exactly here)
+)
+
+# Loading necessary libraries
+library(readxl)       # Reading Excel files
+library(formattable)  # Formatting tables
+library(tidyverse)    # Set of packages for data manipulation
+library(lubridate)    # Date manipulation
+library(stringi)      # String operations
+library(tm)           # Text mining
+library(slam)         # Sparse matrix manipulation
+library(stringr)      # String operations
+library(stringdist)   # Calculating string distances
+library(scales)       # Scales for graphs
+library(sf)           # Simple Features for R
+library(ggplot2)      # Data visualization
+library(ggspatial)    # Spatial data visualization
+library(osmdata)      # OpenStreetMap data
+library(leaflet)      # Interactive maps
+library(prettymapr)   # Pretty maps
+library(rosm)
+
+# Formatting for Brazilian Real
+format_real = function(values, nsmall = 0) {
+  values |>
+    as.numeric() |>
+    format(nsmall = nsmall, decimal.mark = ",", big.mark = ".") |>
+    str_trim()
+}
+
+# Function to create a survival data frame
+df_surv = function(km) {
+  df = data.frame(
+    "Companies at risk" = c(format_real(km[[3]])), 
+    "Time (Months)" = c(km[[2]]), 
+    "Time (Years)" = c(round(km[[2]] / 12, 2)),
+    "Closed companies" = c(km[[4]]), 
+    "Survival" = c(round(km[[6]], 4)), 
+    check.names = FALSE
+  )
+  return(df)
+}
+
+colors = c("#001219","#9b2226","#005f73","#bc6c25","#0a9396","#6d6875","#94d2bd","#ee9b00")
+```
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+# Loading the table of legal natures from the qsacnpj package
+naturezas_juridicas <- qsacnpj::tab_natureza_juridica
+
+# Converting the legal nature subclass code to numeric
+naturezas_juridicas$cod_subclass_natureza_juridica <- as.numeric(naturezas_juridicas$cod_subclass_natureza_juridica)
+
+# Loading the file of companies from Piauí and filtering for business entities, avoiding repetitions
+empresas_tHE <- read.csv("empresas_pi.csv", dec = ",") |>
+  dplyr::left_join(naturezas_juridicas, by = c("natureza_juridica" = "cod_subclass_natureza_juridica")) |>
+  dplyr::filter(nm_natureza_juridica == "Entidades Empresariais") |>
+  dplyr::distinct()
+
+# Loading the file of establishments from Piauí and filtering for the specific municipality, headquarters, and registration status
+estabelecimentos_the <- read.csv("estabelecimentos_pi.csv") |>
+  dplyr::inner_join(empresas_tHE, by = "cnpj_basico") |>
+  dplyr::filter(motivo_situacao_cadastral != 9,
+                id_municipio_rf == 1219, 
+                identificador_matriz_filial == 1,
+                situacao_cadastral %in% c(2, 8))
+
+# Loading and processing the CNAE code table
+code_cnae = qsacnpj::tab_cnae |>
+    dplyr::mutate(cod_cnae = as.integer(cod_cnae)) |>
+    dplyr::mutate(nm_cnae = case_when(
+        nm_cnae == 'Comércio varejista de mercadorias em geral com predominância de produtos alimentícios - minimercados mercearias e armazéns' ~ 'Minimercados mercearias e armazéns',  
+        TRUE ~ nm_cnae
+    ))
+```
+
+
+## Ativação e baixas
+
+Os gráficos a seguir ilustram a evolução histórica das baixas de empresas no estado do Piauí. É possível observar que, em todos os anos analisados, o número de aberturas supera o de baixas. No entanto, em 2008, 2015 e 2018, há picos significativos no número de baixas, consequência de iniciativas da Receita Federal para o cancelamento de CNPJs de empresas que já não estavam em operação.
+
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+# Beginning of activities
+inicio_atividade <- estabelecimentos_the|>
+  dplyr::mutate(data_inicio_atividade = lubridate::ymd(data_inicio_atividade))|>
+  dplyr::mutate(mes_atividade = floor_date(data_inicio_atividade, "quarter"),
+                ano_atividade = floor_date(data_inicio_atividade, "year"))|>
+  dplyr::filter(mes_atividade >= "1960-01-01")|>
+  dplyr::count(ano_atividade)|>
+  dplyr::mutate(mes_atividade = ano_atividade)
+
+# End of activities
+fim_atividade <- estabelecimentos_the|>
+  dplyr::filter(situacao_cadastral == 8)|>
+  dplyr::mutate(data_situacao_cadastral = lubridate::ymd(data_situacao_cadastral))|>
+  dplyr::mutate(mes_atividade = floor_date(data_situacao_cadastral, "quarter"),
+                ano_atividade = floor_date(data_situacao_cadastral, "year"))|>
+  dplyr::filter(mes_atividade >= "1960-01-01")|>
+  dplyr::count(ano_atividade)|>
+  dplyr::mutate(mes_atividade = ano_atividade) 
+
+# Comparative chart
+inicio_atividade|>
+  dplyr::left_join(fim_atividade, by = "mes_atividade")|>
+  dplyr::mutate(n.y = replace_na(n.y, 0))|>
+  dplyr::select(mes_atividade, n.x, n.y)|>
+  reshape2::melt(id = c("mes_atividade"))|>
+  dplyr::mutate(variable = str_replace(variable, "n.x", "Start"),
+                variable = str_replace(variable, "n.y", "Closure"))|>
+  dplyr::rename("Activity" = "variable")|>
+  ggplot(aes(x = mes_atividade, y = value / 1000, color = Activity)) +
+  geom_line(size = 1) +
+  theme_minimal(base_size = 10) +
+  scale_color_manual(values = c("red", "gold")) +
+  scale_x_date(breaks = scales::date_breaks("3 year"),
+               labels = scales::date_format("%Y")) +
+  labs(title = "History of CNPJ Openings and Closures in Teresina",
+       x = "Year",
+       y = "Number of companies (thousands)") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+        axis.title.x = element_text(size = 20),
+        axis.title.y = element_text(size = 20),
+        legend.key.size = unit(1.3, 'cm'),
+        legend.key.width = unit(1, "cm"),
+        legend.title = element_text(size = 15),
+        legend.text = element_text(size = 10),
+        panel.grid.minor.x = element_blank())
+```
+
+A parte final da série demonstra que, a partir de 2020, ocorre um aumento significativo no número de aberturas de empresas, enquanto as baixas de CNPJs crescem em menor escala. Esse movimento reflete claramente um aumento na atividade econômica e financeira no período. A seguir, discutimos em detalhe os números que explicam esse salto.
+
+# Evolução de CNPJ's ativos
+
+Uma análise histórica sobre a diferença entre ativações e baixas revela que, entre 1971 e 2007, houve um processo gradual e consistente de crescimento no número de empresas abertas, o qual culminou em 2008. Nesse ano, a ação da Receita Federal para cancelar CNPJs de empresas inativas possuiu um impacto significativo, resultando em uma redução de 43% no total de empresas ativas. Em 2010, começa um processo de recuperação, embora ainda afetado por baixas represadas. Contudo, a partir de 2018, observa-se um expressivo crescimento no número de CNPJs ativos, gerando um aumento de 86% entre 2018 e 2024. Certamente, o valor de 32.702 não é o valor exato de CNPJ's ativos, mas o ponto importante é o aumento diagnósticado.
+
+A seguir, apresentaremos uma análise detalhada dos dados com base no CNAE, destacando quais atividades econômicas registraram os maiores avanços nesse período.
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+# Merging the start and end activity datasets, calculating cumulative sums and balance
+final_data <- inicio_atividade |>
+  dplyr::left_join(fim_atividade, by = "mes_atividade") |>
+  dplyr::mutate(n.y = replace_na(n.y, 0),  # Replace NA values in n.y with 0
+                cumsum_abertura = cumsum(n.x),  # Cumulative sum of openings
+                cumsum_baixa = cumsum(n.y),  # Cumulative sum of closures
+                Saldo = cumsum_abertura - cumsum_baixa)  # Balance between openings and closures
+
+# Filtering the final data to get the most recent month
+final_value <- final_data |>
+  dplyr::filter(mes_atividade == max(mes_atividade))
+
+# Plotting the balance between openings and closures over time
+ggplot(final_data, aes(x = mes_atividade, y = Saldo)) +
+  geom_line(size = 1, color = "blue") +  # Line plot with specified size and color
+  theme_minimal(base_size = 10) +  # Minimal theme with base font size
+  scale_x_date(breaks = scales::date_breaks("3 year"),  # X-axis breaks every 3 years
+               labels = scales::date_format("%Y")) +  # X-axis labels formatted as years
+  labs(title = "Balance between Openings and Closures",  # Plot title
+       x = "Year",  # X-axis label
+       y = "Evolution") +  # Y-axis label
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10),  # X-axis text style
+        axis.title.x = element_text(size = 20),  # X-axis title style
+        axis.title.y = element_text(size = 20),  # Y-axis title style
+        legend.key.size = unit(1.3, 'cm'),  # Legend key size
+        legend.key.width = unit(1, "cm"),  # Legend key width
+        legend.title = element_text(size = 15),  # Legend title text size
+        legend.text = element_text(size = 10),  # Legend text size
+        panel.grid.minor.x = element_blank()) +  # Remove minor grid lines on X-axis
+  geom_text(data = final_value, aes(label = format_real(Saldo)),  # Add text label for the final value
+            vjust = -0.5, color = "blue", size = 5)  # Text label style
+
+```
+
+## Análise por Região
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+# List of stop words
+stop_words <- c("oeste","leste","norte", "zona", "bairro", "conjunto", "cj", "conj", "ii", "i")
+
+# Function to process the text corpus
+tratar_corpus <- function(x) {
+  corpus <- Corpus(VectorSource(x))
+  corpus <- tm_map(corpus, content_transformer(tolower))            # Convert all characters to lowercase
+  corpus <- tm_map(corpus, removePunctuation)                       # Remove punctuation
+  corpus <- tm_map(corpus, stripWhitespace)                         # Remove extra whitespace
+  sapply(corpus, as.character)                                      # Convert back to character vector
+}
+
+# Count of companies by region and creation of the table
+
+estabelecimentos_the = estabelecimentos_the|>
+  dplyr::mutate(bairro = stringi::stri_trans_general(str = bairro, id = "Latin-ASCII"),  # Convert to ASCII
+                bairro = removeNumbers(bairro),                                          # Remove numbers
+                bairro = gsub("NORTE", "", bairro, ignore.case = TRUE),                  # Remove "NORTE"
+                bairro = gsub("SUL", "", bairro, ignore.case = TRUE),                    # Remove "SUL"
+                bairro = gsub("ZONA", "", bairro, ignore.case = TRUE),                   # Remove "ZONA"
+                bairro = gsub("[[:punct:]]", "", bairro),                                # Remove punctuation
+                bairro = gsub("B ", "", bairro),                                         # Remove "B "
+                bairro = gsub("BAIRRO ", "", bairro),                                    # Remove "BAIRRO "
+                bairro = gsub("CONUNTO ", "", bairro),                                   # Remove "CONUNTO "
+                bairro = gsub("CONJUNTO ", "", bairro),                                  # Remove "CONJUNTO "
+                bairro = gsub("CONJ ", "", bairro),                                      # Remove "CONJ "
+                bairro = gsub("CJ ", "", bairro),                                        # Remove "CJ "
+                bairro = gsub(" I", "", bairro),                                         # Remove " I"
+                bairro = gsub(" II", "", bairro),                                        # Remove " II"
+                bairro = gsub(" III", "", bairro),                                       # Remove " III"
+                bairro = gsub("RESIDENCIAL ", "", bairro),                               # Remove "RESIDENCIAL "
+                bairro = gsub("CLUB", "", bairro),                                       # Remove "CLUB"
+                bairro = gsub("LOT", "", bairro),                                        # Remove "LOT"
+                bairro = gsub("VILA", "", bairro),                                       
+                bairro = ifelse(grepl("RURAL", bairro),"RURAL", bairro),                 # Replace "RURAL"
+                bairro = ifelse(grepl("CENTRO", bairro),"CENTRO", bairro),
+                bairro = ifelse(grepl("DISTRITONDUSTRIAL", bairro),"DISTRITO INDUSTRIAL", bairro),
+                bairro = ifelse(grepl("JOQUEY", bairro),"JOQUEI", bairro),
+                bairro = ifelse(grepl("JOCKEY", bairro),"JOQUEI", bairro),# Replace "JOQUEY"
+                bairro = ifelse(grepl("JOCKEI", bairro),"JOQUEI", bairro), 
+                bairro = ifelse(grepl("JOKEY", bairro),"JOQUEI", bairro),
+                bairro = ifelse(grepl("JOCKY", bairro),"JOQUEI", bairro),
+                bairro = ifelse(grepl("PIAUI", bairro),"PARQUE PIAUI", bairro),
+                bairro = ifelse(grepl("MARQUES", bairro),"MARQUES", bairro),
+                bairro = ifelse(grepl("DIRCEU", bairro),"ITARARE", bairro),
+                bairro = ifelse(grepl("ARCOVERDE", bairro),"ITARARE", bairro),
+                bairro = ifelse(grepl("ARCO", bairro),"ITARARE", bairro),
+                bairro = ifelse(grepl("BUENO", bairro),"BUENOS AIRES", bairro),
+                bairro = ifelse(grepl("FALCAO", bairro),"VALE DO GAVIAO", bairro),
+                bairro = ifelse(grepl("L PARENTE", bairro),"LORIVAL PARENTE", bairro),
+                bairro = ifelse(grepl("MINERAL", bairro),"ÁGUA MINERAL", bairro),
+                bairro = ifelse(grepl("PARANAGUA", bairro),"MARQUES", bairro),
+                bairro = ifelse(grepl("ALVORADA", bairro),"PARQUE ALVORADA", bairro),
+                bairro = ifelse(grepl("PARQUEDEAL", bairro),"PARQUE IDEAL", bairro),
+                bairro = ifelse(grepl("SACY", bairro),"SACI", bairro),
+                bairro = ifelse(grepl("MORADO DO SOL", bairro),"MORADA DO SOL", bairro),
+                bairro = ifelse(grepl("SANTASABEL", bairro),"SANTA ISABEL", bairro),
+                bairro = ifelse(grepl("REAL", bairro),"REAL COPAGRE", bairro),
+                bairro = str_trim(bairro, "both"),                                       # Trim whitespace
+                bairro_trat = bairro,                                                    # Create treated neighborhood column
+                bairro_trat = tratar_corpus(bairro_trat))|>                              # Process the text corpus
+  dplyr::filter(bairro_trat != '')                                                     # Filter out empty neighborhoods
+
+# Create a table with counts of companies by treated neighborhood
+df_trat = estabelecimentos_the|>
+  dplyr::filter(bairro_trat != '')|>                # Filter out empty neighborhoods
+                count(bairro, bairro_trat)|>        # Count by neighborhood and treated neighborhood
+                arrange(desc(n))                    # Arrange in descending order
+
+# Create a distance matrix using Jaccard distance
+dist_matrix = stringdistmatrix(df_trat$bairro_trat, method = "jaccard")
+
+# Perform hierarchical clustering
+hc = hclust(as.dist(dist_matrix))
+
+# Cut the tree to form groups
+groups = cutree(hc, h = 0.35) # Adjust h value based on the desired level of similarity
+
+# Add groups to the original data
+df_trat$group = groups
+
+# Join the groups back to the establishments data
+estabelecimentos_the = estabelecimentos_the|>
+  dplyr::left_join(df_trat, by = "bairro_trat")
+
+# Summarize the data by group
+df_trat = df_trat|>
+  group_by(group)|>                # Group by cluster group
+  summarise(N = sum(n),            # Sum the counts
+            bairro = first(bairro))|> # Get the first neighborhood name in each group
+  ungroup()
+
+# Join the summarized data back to the establishments data
+estabelecimentos_the = estabelecimentos_the|>
+  dplyr::left_join(df_trat, by = "group") |>
+  dplyr::mutate(bairro = ifelse(grepl("RIZOLETA NEVES", bairro.y),"RIZOLETA NEVES", bairro),
+                bairro = ifelse(grepl("TANCREDO NEVES", bairro.y), "TANCREDO NEVES", bairro),
+                bairro = ifelse(grepl("ARVORES VERDES", bairro.y), "ARVORES VERDES", bairro),
+                bairro = ifelse(grepl("TODOS OS SANTOS", bairro.y), "TODOS OS SANTOS", bairro),
+                bairro = ifelse(grepl("SANTA ROSA", bairro.y), "SANTA ROSA", bairro),
+                bairro = ifelse(grepl("REDONDA", bairro.y), "REDONDA", bairro),
+                bairro = ifelse(grepl("RECANTO DAS PALMEIRAS", bairro.y), "RECANTO DAS PALMEIRAS", bairro),
+                bairro = ifelse(grepl("REAL COPAGRE", bairro.y), "REAL COPAGRE", bairro),
+                bairro = ifelse(grepl("PIRAJA", bairro.y), "PIRAJA", bairro),
+                bairro = ifelse(grepl("MORADO DO SOL", bairro.y), "MORADA DO SOL", bairro),
+                bairro = ifelse(grepl("PORTO ALEGRE", bairro.y), "PORTO ALEGRE", bairro),
+                bairro = ifelse(grepl("AREIAS", bairro.y), "AREIAS", bairro),
+                bairro = ifelse(grepl("CIDADE JARDIM", bairro.y), "CIDADE JARDIM", bairro),
+                bairro = ifelse(grepl("ALVORADA", bairro.y),"PARQUE ALVORADA", bairro),
+                bairro = ifelse(grepl("PARQUEDEAL", bairro.y),"PARQUE IDEAL", bairro),
+                bairro = ifelse(grepl("ÁGUA MINERAL", bairro.y),"AGUA MINERAL", bairro),
+                bairro = ifelse(grepl("SAO FRANCISCO", bairro.y),"VILA SAO FRANCISCO", bairro),
+                bairro = ifelse(grepl("OPERARIA", bairro.y),"VILA OPERARIA", bairro),
+                bairro = ifelse(grepl("REAL COPARGI", bairro.y),"REAL COPAGRE", bairro),
+                bairro = ifelse(grepl("PARQUE JACINTA", bairro.y),"PARQUE JACINTA", bairro),
+                bairro = ifelse(grepl("GRACAS", bairro.y),"NOSSA SRA DAS GRACAS", bairro),
+                bairro = ifelse(grepl("BEIRA RIO", bairro.y),"BEIRA RIO", bairro),
+                bairro = ifelse(grepl("CATARINA", bairro.y),"CATARINA", bairro),
+                bairro = ifelse(grepl("PARQUE JULIANA", bairro.y),"PARQUE JULIANA", bairro),
+                bairro = ifelse(grepl("PARQUE POTI", bairro.y),"PARQUE POTI", bairro),
+                bairro = ifelse(grepl("SANTA LIA", bairro.y),"SANTA LIA", bairro),
+                bairro = ifelse(grepl("URUGUAI", bairro.y) & grepl("GURUPI", bairro),"URUGUAI", bairro),
+                bairro = ifelse(grepl("PLANALTO URUGUAI", bairro.y) & grepl("PLANALTONINGA", bairro),"PLANALTO URUGUAI", bairro),
+                bairro = ifelse(grepl("SATELITE", bairro.y) & grepl("BELA VISTA", bairro),"SATELITE", bairro))  
+
+
+# # Ler o arquivo GeoJSON e transformar os nomes em maiúsculas
+# geojson_file <- "D:\\OneDrive\\DEV\\geo_dados\\the_bairros.geojson"
+# geo_data <- read_sf(geojson_file) |>
+#   mutate(
+#     Name = toupper(Name),
+#     Name = stri_trans_general(str = Name, id = "Latin-ASCII"),
+#     Name = ifelse(grepl("MORADO DO SOL", Name),"MORADA DO SOL", Name),
+#     #Name = ifelse(grepl("PARQUE INDUSTRIAL", Name),"DISTRITO INDUSTRIAL", Name),
+#     Name = ifelse(grepl("REAL COPARGE", Name),"REAL COPAGRE", Name),
+#     #Name = ifelse(grepl("REAL COPARGE", Name),"REAL COPAGRE", Name),
+#     )|>
+#   dplyr::rename(Bairro = Name) #|>
+#   #dplyr::distinct(Bairro, .keep_all = TRUE)
+
+bairros <- "bairros.xlsx"|> 
+  read_xlsx()|> 
+  mutate(Bairro = stri_trans_general(str = Bairro, id = "Latin-ASCII"), # Remove acentos
+         Bairro = str_trim(Bairro, "both"), # Remove espaços em branco nas extremidades
+         Bairro = toupper(Bairro))|> 
+  mutate(Bairro = case_when(Bairro == 'JOCKEY' ~ 'JOQUEI', TRUE ~ Bairro ),
+         Bairro = case_when(Bairro == 'LOURIVAL PARENTE' ~ 'LORIVAL PARENTE', TRUE ~ Bairro ),
+         Bairro = case_when(Bairro == 'VERDE CAP' ~ 'VERDECAP', TRUE ~ Bairro),
+         Bairro = case_when(Bairro == 'SANTA MARIA DA CODIPE' ~ 'SANTA MARIA',TRUE ~ Bairro),
+         Bairro = case_when(Bairro == 'NOSSA SENHORA DAS GRACAS' ~ 'NOSSA SRA DAS GRACAS', TRUE ~ Bairro ),
+         Bairro = case_when(Bairro == 'SAO LOURENCO' ~ 'SAO LORENCO',TRUE ~ Bairro))
+
+# Load shapefile
+shapename <- read_sf('D:\\OneDrive\\DEV\\geo_dados\\PI_Setores_2021\\PI_Setores_2021.shp')|>
+            dplyr::filter(NM_MUN == "Teresina" & !is.na(NM_SUBDIST))|>
+            dplyr::mutate(NM_SUBDIST = case_when(NM_SUBDIST == 'Centro' ~ 'Central', TRUE ~ NM_SUBDIST),
+                          NM_SUBDIST = case_when(NM_SUBDIST == 'Leste' ~ 'Zona Leste', TRUE ~ NM_SUBDIST),
+                          NM_SUBDIST = case_when(NM_SUBDIST == 'Norte' ~ 'Zona Norte', TRUE ~ NM_SUBDIST),
+                          NM_SUBDIST = case_when(NM_SUBDIST == 'Sudeste' ~ 'Zona Sudeste', TRUE ~ NM_SUBDIST),
+                          NM_SUBDIST = case_when(NM_SUBDIST == 'Sul' ~ 'Zona Sul', TRUE ~ NM_SUBDIST))|>
+            dplyr::group_by(NM_SUBDIST)|>
+            dplyr::summarise(geometry = st_union(geometry))
+```
+
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+# Calculate the number of closures per year and region
+fechamentos_regiao <- estabelecimentos_the|>
+  left_join(bairros, by = c("bairro" = "Bairro"))|>
+  distinct()|>
+  drop_na(Região)|>
+  filter(situacao_cadastral == 8)|>
+  mutate(Ano = year(data_situacao_cadastral))|>
+  group_by(Ano, Região)|>
+  summarise(Fechamentos = n(), .groups = 'drop')
+
+# Calculate the number of openings per year and region
+aberturas_regiao <- estabelecimentos_the|>
+  left_join(bairros, by = c("bairro" = "Bairro"))|>
+  distinct()|>
+  drop_na(Região)|>
+  mutate(Ano = year(data_inicio_atividade))|>
+  group_by(Ano, Região)|>
+  summarise(Aberturas = n(), .groups = 'drop')
+
+# Join the data of closures and openings
+diferenca_regiao <- full_join(aberturas_regiao, fechamentos_regiao, by = c("Ano", "Região"))|>
+  replace_na(list(Aberturas = 0, Fechamentos = 0))|>
+  mutate(Diferenca = Aberturas - Fechamentos)|>
+  group_by(Região)|>
+  arrange(Ano)|>
+  mutate(Diferenca_Acumulada = cumsum(Diferenca))
+
+# Calculate the final value of Diferenca_Acumulada by region
+valores_finais_regiao <- diferenca_regiao|>
+  group_by(Região)|>
+  summarise(Valor_Final = last(Diferenca_Acumulada))
+```
+
+## Abertura por zona
+
+A análise por região é importante para identificar quais áreas da cidade concentram maior atividade comercial. Observa-se que as curvas de evolução por zonas da cidade apresentam comportamentos semelhantes à curva geral, que desconsidera a divisão por regiões. No entanto, ao analisá-las detalhadamente, percebe-se diferentes fases no padrão de aberturas.
+
+Inicialmente, o centro da cidade destacava-se como a região com maior número de ativações, sendo predominante até 1989, quando a zona sul passou a acompanhar seu desempenho. A partir de 2009, entretanto, a zona sul registra um grande aumento no número de empresas ativas, superando de forma significativa a região central. Em paralelo, a zona leste estabelece-se como o outro setor com maior volume de ativações. Já a região central, que historicamente liderava as aberturas, perde relevância ao longo do tempo, tornando-se, a partir de 2020, a área com o menor número de ativações na cidade.
+
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+# Joining neighborhood data with establishments data, and creating the plot
+estabelecimentos_the|>
+  dplyr::left_join(bairros, by = c("bairro" = "Bairro"))|>
+  dplyr::distinct()|>
+  tidyr::drop_na(Região)|>
+  dplyr::mutate(Ano = year(data_inicio_atividade))|>
+  dplyr::group_by(Ano, Região)|>
+  dplyr::summarise(N = n())|>
+  ggplot(aes(x = Ano, y = N, color = Região)) +
+  geom_line(size = 1) +
+  theme_minimal(base_size = 10) +
+  labs(title = "History of CNPJ Openings in Teresina by Region",
+       x = "Year",
+       y = "Number of companies") +
+  scale_color_manual(values = colors) +
+  scale_x_continuous(breaks = seq(min(year(estabelecimentos_the$data_inicio_atividade), na.rm = TRUE),
+                                  max(year(estabelecimentos_the$data_inicio_atividade), na.rm = TRUE), by = 3)) +
+  scale_colour_manual(values = colors)+      
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+        axis.title.x = element_text(size = 20),
+        axis.title.y = element_text(size = 20),
+        legend.key.size = unit(1.3, 'cm'),
+        legend.key.width = unit(1, "cm"),
+        legend.title = element_text(size = 15),
+        legend.text = element_text(size = 10),
+        panel.grid.minor.x = element_blank())
+```
+
+## Fechamento por Região
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+# Joining neighborhood data with establishments data, filtering for closed establishments, and creating the plot
+estabelecimentos_the|>
+  dplyr::left_join(bairros, by = c("bairro" = "Bairro"))|>  # Join neighborhood data
+  dplyr::distinct()|>  # Remove duplicate rows
+  tidyr::drop_na(Região)|>  # Drop rows with missing region data
+  dplyr::filter(situacao_cadastral == 8)|>  # Filter for closed establishments
+  dplyr::mutate(Ano = year(data_situacao_cadastral))|>  # Extract year from closure date
+  dplyr::group_by(Ano, Região)|>  # Group by year and region
+  dplyr::summarise(N = n())|>  # Summarize the count of establishments
+  ggplot(aes(x = Ano, y = N, color = Região)) +  # Create the plot
+  geom_line(size = 1) +  # Add line geometry
+  theme_minimal(base_size = 10) +  # Apply minimal theme
+  labs(title = "History of CNPJ Closures in Teresina by Region",
+       x = "Year",
+       y = "Number of companies") +
+  scale_color_manual(values = c("red", "gold", "green", "purple", "blue")) +  # Set custom colors for regions
+  scale_x_continuous(breaks = seq(min(year(estabelecimentos_the$data_inicio_atividade), na.rm = TRUE),
+                                  max(year(estabelecimentos_the$data_inicio_atividade), na.rm = TRUE), by = 3)) +  # Set x-axis breaks
+    scale_colour_manual(values = colors)+        
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10),  # Customize x-axis text
+        axis.title.x = element_text(size = 20),  # Customize x-axis title
+        axis.title.y = element_text(size = 20),  # Customize y-axis title
+        legend.key.size = unit(1.3, 'cm'),  # Customize legend key size
+        legend.key.width = unit(1, "cm"),  # Customize legend key width
+        legend.title = element_text(size = 15),  # Customize legend title
+        legend.text = element_text(size = 10),  # Customize legend text
+        panel.grid.minor.x = element_blank())  # Remove minor grid lines on x-axis
+```    
+ 
+
+## Evolução por Região
+
+A evolução histórica dos CNPJs ativos evidencia como a região central da cidade foi dominante até 2008. No entanto, esse mesmo ano marcou uma significativa retração na região, sendo a mais impactada pelas baixas realizadas pela Receita Federal. Considerando o caráter acumulado e represado das baixas de CNPJs na zona central, é possível que, mesmo antes de 2008, a região já pudesse ter sido superada pela zona sul em termos de número de empresas ativas.
+
+A partir de 2017, a zona leste destaca-se como a região com o maior número de CNPJs ativos, acompanhada de perto pela zona sul. Contudo, em 2023, a zona sul registra uma leve desaceleração, enquanto a zona leste consolida sua liderança como a região com a maior atividade empresarial da cidade.
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+# Plot the accumulated difference by year
+ggplot(diferenca_regiao, aes(x = Ano, y = Diferenca_Acumulada, color = Região)) +
+  geom_line(size = 1) +
+  geom_text(data = valores_finais_regiao, aes(x = max(diferenca_regiao$Ano), y = Valor_Final, label = Valor_Final, color = Região),
+            hjust = -0.1, vjust = 1, size = 3.5, show.legend = FALSE) +
+  theme_minimal(base_size = 10) +
+  labs(title = "Accumulated Difference of Openings and Closures of CNPJ's in Teresina by Region",
+       x = "Year",
+       y = "Accumulated Difference of Companies") +
+  scale_color_manual(values = c("red", "gold", "green", "purple", "blue")) +
+  scale_x_continuous(breaks = seq(min(year(estabelecimentos_the$data_inicio_atividade), na.rm = TRUE),
+                                  max(year(estabelecimentos_the$data_inicio_atividade), na.rm = TRUE), by = 3)) +
+  scale_colour_manual(values = colors)+        
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+        axis.title.x = element_text(size = 20),
+        axis.title.y = element_text(size = 20),
+        legend.key.size = unit(1.3, 'cm'),
+        legend.key.width = unit(1, "cm"),
+        legend.title = element_text(size = 15),
+        legend.text = element_text(size = 10),
+        panel.grid.minor.x = element_blank())
+```
+
+## Mapa do crescimento por zona
+
+Os mapas a seguir ilustram a evolução histórica do número de empresas ativas em cada região da cidade. Observa-se que, até 2004, a região central destacava-se como o setor mais forte em termos de atividade comercial. No entanto, já em 2014, o centro deixa de ocupar essa posição de liderança. Em 2024, a zona leste aparece como a região com maior concentração de empresas ativas, destacada pela tonalidade mais escura no mapa, seguida pela zona sul, conforme também apontado nos gráficos anteriores.
+
+```{r fig.width=8,fig.height=7}
+#| message: false
+#| warning: false
+#| echo: false
+
+anos = c(1974, 1984, 1984, 1994, 2004, 2014, 2024)
+diferenca_regiao_ano <- diferenca_regiao |>
+  dplyr::left_join(shapename, by = c("Região" = "NM_SUBDIST"))|>
+  dplyr::filter(Ano %in% anos)
+
+# Garantir que o objeto resultante é uma classe sf
+diferenca_regiao_ano <- st_as_sf(diferenca_regiao_ano)
+
+# Agora você pode aplicar o st_transform sem problemas
+diferenca_regiao_ano <- st_transform(diferenca_regiao_ano, 3857)
+
+# Ensure CRS is set and transform to Web Mercator (EPSG:3857) for compatibility with web basemaps
+# st_crs(diferenca_regiao_ano)  # Verify the Coordinate Reference System (CRS)
+# diferenca_regiao_ano <- st_transform(diferenca_regiao_ano, 3857)  # Transform CRS to Web Mercator (EPSG 3857)
+
+ggplot() +
+  # Add an OpenStreetMap basemap with adjusted zoom and coverage
+  annotation_map_tile(
+    type = "osm",       # OpenStreetMap basemap
+    zoom = 10,          # Optional: set a zoom level for better control
+    alpha = 0.7         # Add transparency to the basemap
+  ) +
+  # Plot the spatial data with transparency and gradient fill
+  geom_sf(
+    data = diferenca_regiao_ano, 
+    aes(fill = Diferenca_Acumulada),  # Use Diferenca_Acumulada to color the regions
+    color = "black",                  # Add black borders to polygons
+    alpha = 0.8                      # Transparency for fill
+  ) +
+  # Customize the gradient scale for fill color
+  scale_fill_gradient(
+    name = "Quantidade de CNPJ's",      # Legend title
+    low = "#caf0f8",                    # Light blue for low values
+    high = "#03045e"                    # Dark blue for high values
+  ) +
+  # Facet maps by year for comparison
+  facet_wrap(~ Ano, ncol = 3) +         # Wrap by year, 2 columns for better layout
+  # Add titles and labels
+  labs(
+    title = "CNPJ's Ativos por Região e Ano",       # Main title
+    subtitle = "Quantidade de Empresas por Diferença Acumulada",  # Subtitle
+    # caption = "",  # Optional: Add a source or annotation
+    # x = NULL,  # Remove X-axis label
+    # y = NULL   # Remove Y-axis label
+  ) +
+  # Apply a modern theme with clean gridlines
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),          # Remove panel grids for a clean look
+    # legend.position = element_blank(), # Reposition the legend
+    legend.key.width = unit(0.5, "cm"),   # Adjust the legend's key width
+    legend.key.height = unit(1, "cm"),    # Adjust the legend's key height
+    legend.title = element_text(size = 10, face = "bold"),    # Legend title style
+    legend.text = element_text(size = 8),                    # Legend text style
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),   # Centered main title
+    plot.subtitle = element_text(hjust = 0.5, size = 12),    # Centered subtitle
+    # axis.text = element_blank(),          # Remove axis text
+    # axis.ticks = element_blank(),         # Remove axis ticks
+    strip.text = element_text(size = 12, face = "bold")      # Facet label styling
+```
+
+## Top 8 Bairros
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+# Calculate the number of closures per year and neighborhood
+fechamentos_bairro <- estabelecimentos_the|>
+  left_join(bairros, by = c("bairro" = "Bairro"))|>
+  distinct()|>
+  drop_na(bairro)|>
+  filter(situacao_cadastral == 8)|>
+  mutate(Ano = year(data_situacao_cadastral))|>
+  group_by(Ano, bairro)|>
+  summarise(Fechamentos = n(), .groups = 'drop')
+
+# Calculate the number of openings per year and neighborhood
+aberturas_bairro <- estabelecimentos_the|>
+  left_join(bairros, by = c("bairro" = "Bairro"))|>
+  distinct()|>
+  drop_na(bairro)|>
+  mutate(Ano = year(data_inicio_atividade))|>
+  group_by(Ano, bairro)|>
+  summarise(Aberturas = n(), .groups = 'drop')
+
+# Join the data of closures and openings
+diferenca_bairro <- full_join(aberturas_bairro, fechamentos_bairro, by = c("Ano", "bairro"))|>
+  replace_na(list(Aberturas = 0, Fechamentos = 0))|>
+  mutate(Diferenca = Aberturas - Fechamentos)|>
+  group_by(bairro)|>
+  arrange(Ano)|>
+  mutate(Diferenca_Acumulada = cumsum(Diferenca))
+
+# Calculate the final value of Diferenca_Acumulada by neighborhood
+valores_finais_bairro <- diferenca_bairro|>
+  group_by(bairro)|>
+  summarise(Valor_Final = last(Diferenca_Acumulada))|>
+  arrange(desc(Valor_Final))|>
+  head(8)
+```
+
+O gráfico abaixo apresenta a evolução dos atuais oito bairros com maior número de CNPJs ativos. Destaca-se o domínio do Centro, seguido pelo bairro Vale que Tem, que ocupa a segunda posição. No entanto, mesmo sendo o segundo colocado, Vale que Tem não alcança 60% do total de CNPJs registrados na região central. Esse panorama evidencia uma diversificação geográfica das atividades comerciais, indicando que há uma distribuição mais ampla de setores comercais dentro das zonas. Essa tendência reflete a presença de atividades comerciais voltadas para o atendimento de demandas em diferentes regiões sem a necessidade de se locomever para o centro.
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+# Plot the accumulated difference by year
+diferenca_bairro|>
+  filter(bairro %in% c(valores_finais_bairro$bairro))|>
+  ggplot(aes(x = Ano, y = Diferenca_Acumulada, color = bairro)) +
+  geom_line(size = 1) +
+  geom_text(data = valores_finais_bairro, aes(x = max(diferenca_bairro$Ano), y = Valor_Final, label = Valor_Final, color = bairro),
+            hjust = -0.1, vjust = 1, size = 3.5, show.legend = FALSE) +
+  theme_minimal(base_size = 10) +
+  labs(title = "Accumulated Difference of Openings and Closures of CNPJ's in Teresina by Neighborhood (Top 8)",
+       x = "Year",
+       y = "Accumulated Difference of Companies",
+       color = "Neighborhood") +
+  scale_x_continuous(breaks = seq(min(year(estabelecimentos_the$data_inicio_atividade), na.rm = TRUE),
+                                  max(year(estabelecimentos_the$data_inicio_atividade), na.rm = TRUE), by = 3)) +
+     scale_color_manual(values = colors) +                               
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+        axis.title.x = element_text(size = 20),
+        axis.title.y = element_text(size = 20),
+        legend.key.size = unit(1.3, 'cm'),
+        legend.key.width = unit(1, "cm"),
+        legend.title = element_text(size = 15),
+        legend.text = element_text(size = 10),
+        panel.grid.minor.x = element_blank())
+```
+
+
+## Tempo médio (anos) de existência das empresas que deram baixa no CNPJ - Baixadas
+
+A média aritmética é uma medida estatística fundamental que fornece um valor representativo para entender o comportamento geral de uma distribuição de dados. No entanto, é importante notar que a média pode ser significativamente influenciada por valores extremos ou outliers, que podem distorcer a representação real dos dados. Por essa razão, em algumas situações, é recomendável complementar a análise com outras medidas de tendência central, como a mediana e a moda, que podem oferecer interpretações  mais robustas em distribuições assimétricas ou com variações extremas. 
+
+Para obter uma compreensão mais precisa e detalhada dos dados, dividimos a análise da média, da mediana (valor central da distribuição) em duas categorias distintas: empresas com CNPJ baixados e empresas com CNPJ ativos. Essa abordagem permite identificar diferenças entre as duas categorias e fornece informações específicas sobre o comportamento de cada grupo.
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+estabelecimentos_the|>
+  dplyr::filter(situacao_cadastral ==8)|>
+  dplyr::left_join(bairros, by = c("bairro" = "Bairro"))|>  # Join neighborhood data
+  dplyr::distinct()|>  # Remove duplicate rows
+  tidyr::drop_na(Região)|>
+  dplyr::mutate(Periodo = lubridate::interval(data_inicio_atividade, data_situacao_cadastral)/months(1))|>
+  dplyr::group_by(Região)|>
+  dplyr::summarise(N = format_real(n()),
+                    Média = round(mean(Periodo)/12,2), 
+                    Mediana = round(median(Periodo)/12,2),
+                   `SD` = round(sd(Periodo)/12,2),
+                  Máximo = round(max(Periodo)/12,2))|>
+  flextable::flextable()|>
+  flextable::width(j = "Região", width = 2)|>
+  flextable::theme_zebra() # Adjust 
+```
+
+Ao analisar as empresas que já fecharam, observamos que as zonas sul e central destacam-se por possuir a maior quantidade de elementos e uma média mais elevada. A zona sul apresenta uma elevada quantidade de empresas fechadas, acompanhada por uma média alta.  
+
+Semelhante à zona sul, a zona central também possui uma alta quantidade de empresas fechadas e uma média elevada. No entanto, o destaque aqui é a menor distância entre a média e a mediana, o que sugere uma distribuição dos dados mais simétrica e menos influenciada por outliers extremos
+
+### Plot
+
+Comparando as curvas de distribuição pode-se perceber a zona central é que possui  maior regularidade, sem um pico tão alto, as outras zonas, principalmente a sudeste, possuem um pico de redução gradual o que indica que os primeiros anos das empresas são mais propensos para a baixa do cnpj.
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+estabelecimentos_the|>
+  dplyr::filter(situacao_cadastral ==8)|>
+  dplyr::left_join(bairros, by = c("bairro" = "Bairro"))|>  # Join neighborhood data
+  dplyr::distinct()|>  # Remove duplicate rows
+  tidyr::drop_na(Região)|>
+  dplyr::mutate(Periodo = lubridate::interval(data_inicio_atividade, data_situacao_cadastral)/months(1),
+                Periodo = Periodo/12 )|>
+  ggplot2::ggplot(aes(x = Periodo, fill = Região)) +
+  ggplot2::geom_density(alpha = 0.5) +
+  ggplot2::labs(title = "Gráfico de Densidade do Período de Anos de Funcionamento por Região",
+       x = "Período de Funcionamento",
+       y = "Densidade") +
+  ggplot2::theme_minimal(base_size = 10) +
+     theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+        axis.title.x = element_text(size = 30),
+        axis.title.y = element_text(size = 30),
+        legend.key.size = unit(1.3, 'cm'),
+        legend.key.width = unit(1, "cm"),
+        legend.title = element_text(size = 15),
+        legend.text = element_text(size = 10),
+        panel.grid.minor.x = element_blank(),
+        legend.position = "none")+ 
+  facet_wrap(~ Região)+
+  scale_color_manual(values = colors)
+
+```
+
+## Tempo médio (anos) de existência das empresas que não deram baixa no CNPJ - Ativas
+
+Os dados referentes as empresas ativas
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+estabelecimentos_the|>
+  dplyr::filter(situacao_cadastral ==2)|>
+  dplyr::left_join(bairros, by = c("bairro" = "Bairro"))|>  # Join neighborhood data
+  dplyr::distinct()|>  # Remove duplicate rows
+  tidyr::drop_na(Região)|>
+  dplyr::mutate(Periodo = lubridate::interval(data_inicio_atividade, max(estabelecimentos_the$data_situacao_cadastral, na.rm = T))/months(1))|>
+  dplyr::group_by(Região)|>
+  dplyr::summarise(N = format_real(n()),
+                    Média = round(mean(Periodo)/12,2), 
+                    Mediana = round(median(Periodo)/12,2),
+                   `SD` = round(sd(Periodo)/12,2),
+                  Máximo = round(max(Periodo)/12,2))|>
+  flextable::flextable()|>
+  flextable::width(j = "Região", width = 2)|>
+  flextable::theme_zebra() # Adjust 
+```
+
+### Plot
+
+Ao analisar os dados das empresas ativas, observamos que as medidas centrais não diferem significativamente das empresas que encerraram suas atividades. No entanto, as distribuições apresentam diferenças notáveis. Nas empresas que fecharam, há picos em torno de 10%. Em contraste, entre as empresas ativas, nenhuma distribuição começa com menos de 10%, a excesão do centro. Isso indica a presença de muitas empresas novas, com até cinco anos de existência.
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+estabelecimentos_the|>
+  dplyr::filter(situacao_cadastral == 2)|>
+  dplyr::left_join(bairros, by = c("bairro" = "Bairro"))|>  # Join neighborhood data
+  dplyr::distinct()|>  # Remove duplicate rows
+  tidyr::drop_na(Região)|>
+  dplyr::mutate(Periodo = lubridate::interval(data_inicio_atividade, max(estabelecimentos_the$data_situacao_cadastral, na.rm = T))/months(1),
+                Periodo = Periodo/12 )|>
+  ggplot2::ggplot(aes(x = Periodo, fill = Região)) +
+  ggplot2::geom_density(alpha = 0.5) +
+  ggplot2::labs(title = "Gráfico de Densidade do Período de Anos de Funcionamento por Região",
+       x = "Período de Funcionamento",
+       y = "Densidade") +
+  ggplot2::theme_minimal(base_size = 20) +
+     theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+        axis.title.x = element_text(size = 20),
+        axis.title.y = element_text(size = 20),
+        legend.key.size = unit(1.3, 'cm'),
+        legend.key.width = unit(1, "cm"),
+        legend.title = element_text(size = 15),
+        legend.text = element_text(size = 10),
+        panel.grid.minor.x = element_blank(),
+        legend.position = "none")+  # Remove a legenda para clareza
+  facet_wrap(~ Região)
+```
+
+## Análise pelo CNAE
+
+Outra perspectiva importante para esta análise é o tipo de atividade exercida pelas empresas. No Brasil, uma ferramenta essencial que auxilia nesse processo é a **Classificação Nacional de Atividades Econômicas** (CNAE), que atribui códigos específicos a cada tipo de comércio e atividade empresarial. Por meio dessa classificação, é possível identificar os segmentos de maior destaque. A seguir, destacam-se algumas das atividades mais comuns, como Minimercados, Mercearias e Armazéns, bem como o Comércio Varejista de Artigos do Vestuário e Acessórios. Vale ressaltar que a lista completa é extensa, mas aqui são apresentados os 20 principais setores, com base nos valores analisados. 
+
+Infelizmente, ocorreram registro indevidos com CNAE que não existem, foram 3.714 CNAE 8888888 e 2 CNAE 9900800, prejudicando uma análise mais precisa.
+
+### Todos os CNPJ's 
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+estabelecimentos_the|>
+  dplyr::left_join(code_cnae, by = c("cnae_fiscal_principal" = "cod_cnae"))|>
+  count(nm_cnae)|>
+  arrange(desc(n))|>
+  as.data.frame()|>
+  filter(!is.na(nm_cnae))|>
+  head(20)|>
+  dplyr::mutate(n = format_real(n))|>
+  flextable::flextable()|>
+  flextable::width(j = "nm_cnae", width = 6)|>
+  flextable::theme_zebra() # Adjust  
+```
+
+### CNPJ's baixados por CNAE - Top 20
+
+Considerando apenas os CNPJs baixados e os 20 principais setores, observamos uma variação significativa nos valores, com destaque para os hipermercados, que apresentam o maior tempo de atividade. Um indicador relevante nessa análise é a diferença entre a média e a mediana, uma vez que ela reflete o grau de influência dos valores extremos. O setor de Comércio Varejista de Artigos do Vestuário, por exemplo, possui a maior disparidade., com uma diferença de 3,67 anos. Esse dado sugere que, embora existam empresas com um longo período de atividade, a maior parte delas apresenta uma duração consideravelmente menor. 
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+estabelecimentos_the|>
+  dplyr::filter(situacao_cadastral ==8)|>
+  dplyr::left_join(code_cnae, by = c("cnae_fiscal_principal" = "cod_cnae"))|>
+  dplyr::mutate(Periodo = lubridate::interval(data_inicio_atividade, data_situacao_cadastral)/months(1),
+                 Periodo = Periodo/12 )|>
+  filter(!is.na(nm_cnae), !is.na(Periodo))|>
+  dplyr::group_by(nm_cnae)|>
+  dplyr::summarise(n =n(), 
+        "Médio Tempo Ativo" = round(mean(Periodo), 2), 
+                           "Mediana Tempo Ativo" = round(median(Periodo),2), 
+                           Máximo = round(max(Periodo),2))|>
+  arrange(desc(n))|>
+  dplyr::mutate(n = format_real(n))|>
+  head(20)|>
+  flextable::flextable()|>
+  flextable::width(j = "nm_cnae", width = 6)|>
+  flextable::theme_zebra() # Adjust  
+```
+
+### CNPJ's ativos por CNAE - Top 20
+
+Podemos perceber algumas diferenças  entre as tabelas de ativos e inativos, especialmente no que diz respeito às mudanças nas atividades comerciais mais praticadas. Um dos destaques é o aumento de atividades relacionadas a cabeleireiros, manicure e pedicure, assim como a inclusão de categorias como atividades médicas ambulatoriais restritas a consultas e treinamento em desenvolvimento profissional e gerencial, que passam a ocupar posições de maior relevância no contexto analisado. Essas duas últimas, inclusive, não figuravam no top 20 das atividades inativas anteriormente.
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+estabelecimentos_the|>
+  dplyr::filter(situacao_cadastral ==2)|>
+  dplyr::left_join(code_cnae, by = c("cnae_fiscal_principal" = "cod_cnae"))|>
+  dplyr::mutate(Periodo = lubridate::interval(data_inicio_atividade, max(estabelecimentos_the$data_situacao_cadastral, na.rm = T))/months(1),
+                Periodo = Periodo/12 )|>
+  filter(!is.na(nm_cnae), !is.na(Periodo))|>
+  dplyr::group_by(nm_cnae)|>
+  dplyr::summarise(n =n(), "Médio Tempo Ativo" = round(mean(Periodo), 2), 
+                           "Mediana Tempo Ativo" = round(median(Periodo),2), 
+                           Máximo = round(max(Periodo),2))|>
+  
+  arrange(desc(n))|>
+  dplyr::mutate(n = format_real(n))|>
+  head(20)|>
+  flextable::flextable()|>
+  flextable::width(j = "nm_cnae", width = 6)|>
+  flextable::theme_zebra() # Adjust  
+```
+
+
+## Plot da Evolução histórica das TOP 8 CNAE
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+# Calculate the number of closures per year and neighborhood
+fechamentos_nm_cnae <- estabelecimentos_the|>
+  dplyr::left_join(code_cnae, by = c("cnae_fiscal_principal" = "cod_cnae"))|>
+  filter(situacao_cadastral == 8)|>
+  mutate(Ano = year(data_situacao_cadastral))|>
+  group_by(Ano, nm_cnae)|>
+  summarise(Fechamentos = n(), .groups = 'drop')
+
+# Calculate the number of openings per year and neighborhood
+aberturas_nm_cnae <- estabelecimentos_the|>
+  dplyr::left_join(code_cnae, by = c("cnae_fiscal_principal" = "cod_cnae"))|>
+  mutate(Ano = year(data_inicio_atividade))|>
+  group_by(Ano, nm_cnae)|>
+  summarise(Aberturas = n(), .groups = 'drop')
+
+# Join the data of closures and openings
+diferenca_nm_cnae <- full_join(aberturas_nm_cnae, fechamentos_nm_cnae, by = c("Ano", "nm_cnae"))|>
+  replace_na(list(Aberturas = 0, Fechamentos = 0))|>
+  mutate(Diferenca = Aberturas - Fechamentos)|>
+  group_by(nm_cnae)|>
+  arrange(Ano)|>
+  mutate(Diferenca_Acumulada = cumsum(Diferenca))
+
+valores_finais_nm_cnae <- diferenca_nm_cnae|>
+  group_by(nm_cnae)|>
+  summarise(Valor_Final = last(Diferenca_Acumulada))|>
+  arrange(desc(Valor_Final))|>
+  head(8)
+```
+
+
+O gráfico que apresenta as 8 atividades mais exercidas atualmente evidencia o crescimento de três áreas em particular: 
+- cabeleireiros, manicure e pedicure;
+- promotores de vendas e 
+- construção de edifícios. 
+
+Vale destacar que, até 2011, a atividade mais predominante era a de **minimercados, mercearias e armazéns**, que, posteriormente, foi superada pelo **comércio varejista de artigos do vestuário e acessórios**, setor que se mantém em destaque até os dias atuais.
+
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+# Plot the accumulated difference by year
+diferenca_nm_cnae|>
+  filter(nm_cnae %in% c(valores_finais_nm_cnae$nm_cnae))|>
+  ggplot(aes(x = Ano, y = Diferenca_Acumulada, color =str_wrap(nm_cnae,20))) +
+  geom_line(size = 1) +
+  geom_text(data = valores_finais_nm_cnae, aes(x = max(diferenca_nm_cnae$Ano), y = Valor_Final, label = Valor_Final, color = str_wrap(nm_cnae,20)),hjust = -0.1, vjust = 1, size = 3.5, show.legend = FALSE) +
+  theme_minimal(base_size = 10) +
+  labs(title = " CNPJ's History in Teresina by CNAE (Top 8)",
+       x = "Year",
+       y = "Accumulated Difference of Companies",
+       color = "nm_cnae") +
+  scale_x_continuous(breaks = seq(min(year(estabelecimentos_the$data_inicio_atividade), na.rm = TRUE),
+                                  max(year(estabelecimentos_the$data_inicio_atividade), na.rm = TRUE), by = 3)) +
+  scale_colour_manual(values = colors)+                                
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+        axis.title.x = element_text(size = 20),
+        axis.title.y = element_text(size = 20),
+        # legend.key.size = unit(1, 'cm'),
+        # legend.key.width = unit(0.8, "cm"),
+        legend.key.height=unit(1.5, "cm"),
+        legend.title = element_text(size = 15),
+        legend.text = element_text(size = 10),
+        panel.grid.minor.x = element_blank()) 
+```
+
+Conforme mencionamos anteriormente, as razões para essas mudanças no comércio demandam uma análise mais aprofundada. No entanto, é possível apontar alguns fatores importantes que podem estar contribuindo para essas transformações, como o crescimento das atividades online, o aumento no número de Microempreendedores Individuais (MEIs) e as deficiências no transporte público, que podem influenciar diretamente o comportamento do mercado.
+
+Essa análise, ainda em estágio inicial, evidencia como o uso de dados é essencial para compreender melhor o funcionamento das estruturas de mercado e as dinâmicas que impulsionam suas mudanças.
