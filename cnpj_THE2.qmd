@@ -3,11 +3,15 @@ title: "Análise de abertura e baixa de CNPJ's em Teresina - PI"
 format: html
 ---
 
+
 Buscar formas de analisar o mercado de uma região é importante para o entender desenvolvimento local, tanto para o setor público, onde o estado pode praticar políticas que incentivem o comércio, quanto para o empresariado, que pode buscar formas de sobrevivência superando a dinamicidade do mercado. Esta análise, utilizando os dados da Receita Federal, calcula o tempo de existência de uma empresa através do intervalo de tempo entre a ativação do CNPJ e a sua baixa, quando houver.
 
 É importante destacar que o banco de dados apresenta problemas de preenchimento, como nomes de bairros incorretos — apenas o termo "centro" teve 10 formas diferentes de escrita — ou campos não preenchidos, resultando na perda de alguns elementos. Embora esses problemas não prejudiquem o estudo, eles impedem a obtenção de números que sejam exatamente precisos em relação à realidade.
 
-Os dados foram obtidos no site da Receita Federal e abrangem o período desde a década de 1960 até os dias atuais. Filtramos as informações para utilizar apenas os dados e não buscaremos aprofundar as as mudanças que ocorreram durante o período analisado. 
+Os dados foram obtidos no site da Receita Federal e abrangem o período desde a década de 1960 até os dias atuais. Filtramos as informações para utilizar apenas os **dados de CNPJ's ativos e CNPJ's com baixa de entidades empresariais** e não buscaremos aprofundar a análise em buscas de respostas para as mudanças que ocorreram durante o período analisado pois é tema muito extenso para este texto. 
+
+Obs.: O código para produzir este material está [aqui](https://github.com/filmateus/cnpj_pi/blob/main/cnpj_THE2.qmd)
+
 
 ```{r}
 #| message: false
@@ -66,7 +70,7 @@ df_surv = function(km) {
   return(df)
 }
 
-colors = c("#001219","#9b2226","#005f73","#bc6c25","#0a9396","#6d6875","#94d2bd","#ee9b00")
+colors = c("#f72585","#4cc9f0","#b5179e","#4895ef","#7209b7","#4361ee","#0a9396","#005f73")
 ```
 
 ```{r}
@@ -139,18 +143,18 @@ inicio_atividade|>
   dplyr::mutate(n.y = replace_na(n.y, 0))|>
   dplyr::select(mes_atividade, n.x, n.y)|>
   reshape2::melt(id = c("mes_atividade"))|>
-  dplyr::mutate(variable = str_replace(variable, "n.x", "Start"),
-                variable = str_replace(variable, "n.y", "Closure"))|>
-  dplyr::rename("Activity" = "variable")|>
-  ggplot(aes(x = mes_atividade, y = value / 1000, color = Activity)) +
-  geom_line(size = 1) +
+  dplyr::mutate(variable = str_replace(variable, "n.x", "Abertura"),
+                variable = str_replace(variable, "n.y", "Baixa"))|>
+  dplyr::rename("Ação" = "variable")|>
+  ggplot(aes(x = mes_atividade, y = value / 1000, color = Ação)) +
+  geom_line(size = 2) +
   theme_minimal(base_size = 10) +
   scale_color_manual(values = c("red", "gold")) +
   scale_x_date(breaks = scales::date_breaks("3 year"),
                labels = scales::date_format("%Y")) +
-  labs(title = "History of CNPJ Openings and Closures in Teresina",
-       x = "Year",
-       y = "Number of companies (thousands)") +
+  labs(title = "Histórico de ativações e baixas de CNPJ's",
+       x = "Ano",
+       y = "Quantidade") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
         axis.title.x = element_text(size = 20),
         axis.title.y = element_text(size = 20),
@@ -188,13 +192,13 @@ final_value <- final_data |>
 
 # Plotting the balance between openings and closures over time
 ggplot(final_data, aes(x = mes_atividade, y = Saldo)) +
-  geom_line(size = 1, color = "blue") +  # Line plot with specified size and color
+  geom_line(size = 2, color = "blue") +  # Line plot with specified size and color
   theme_minimal(base_size = 10) +  # Minimal theme with base font size
   scale_x_date(breaks = scales::date_breaks("3 year"),  # X-axis breaks every 3 years
                labels = scales::date_format("%Y")) +  # X-axis labels formatted as years
-  labs(title = "Balance between Openings and Closures",  # Plot title
-       x = "Year",  # X-axis label
-       y = "Evolution") +  # Y-axis label
+  labs(title = "Acumulado de Ativações menos baixa por ano",  # Plot title
+       x = "Ano",  # X-axis label
+       y = "Evolução") +  # Y-axis label
   theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10),  # X-axis text style
         axis.title.x = element_text(size = 20),  # X-axis title style
         axis.title.y = element_text(size = 20),  # Y-axis title style
@@ -415,7 +419,8 @@ diferenca_regiao <- full_join(aberturas_regiao, fechamentos_regiao, by = c("Ano"
 # Calculate the final value of Diferenca_Acumulada by region
 valores_finais_regiao <- diferenca_regiao|>
   group_by(Região)|>
-  summarise(Valor_Final = last(Diferenca_Acumulada))
+  summarise(Valor_Final = last(Diferenca_Acumulada))|>
+  dplyr::mutate(prop = percent(Valor_Final/sum(Valor_Final)))
 ```
 
 ## Abertura por zona
@@ -439,11 +444,11 @@ estabelecimentos_the|>
   dplyr::group_by(Ano, Região)|>
   dplyr::summarise(N = n())|>
   ggplot(aes(x = Ano, y = N, color = Região)) +
-  geom_line(size = 1) +
+  geom_line(size = 2) +
   theme_minimal(base_size = 10) +
-  labs(title = "History of CNPJ Openings in Teresina by Region",
-       x = "Year",
-       y = "Number of companies") +
+  labs(title = "Histórico de Ativações de CNPJ's por Região",
+       x = "Ano",
+       y = "Quantidade") +
   scale_color_manual(values = colors) +
   scale_x_continuous(breaks = seq(min(year(estabelecimentos_the$data_inicio_atividade), na.rm = TRUE),
                                   max(year(estabelecimentos_the$data_inicio_atividade), na.rm = TRUE), by = 3)) +
@@ -475,12 +480,12 @@ estabelecimentos_the|>
   dplyr::group_by(Ano, Região)|>  # Group by year and region
   dplyr::summarise(N = n())|>  # Summarize the count of establishments
   ggplot(aes(x = Ano, y = N, color = Região)) +  # Create the plot
-  geom_line(size = 1) +  # Add line geometry
+  geom_line(size = 2) +  # Add line geometry
   theme_minimal(base_size = 10) +  # Apply minimal theme
-  labs(title = "History of CNPJ Closures in Teresina by Region",
-       x = "Year",
-       y = "Number of companies") +
-  scale_color_manual(values = c("red", "gold", "green", "purple", "blue")) +  # Set custom colors for regions
+  labs(title = "Histórico de Baixa de CNPJ's por Região",
+       x = "Ano",
+       y = "Quantidade") +
+   scale_colour_manual(values = colors)+        
   scale_x_continuous(breaks = seq(min(year(estabelecimentos_the$data_inicio_atividade), na.rm = TRUE),
                                   max(year(estabelecimentos_the$data_inicio_atividade), na.rm = TRUE), by = 3)) +  # Set x-axis breaks
     scale_colour_manual(values = colors)+        
@@ -508,16 +513,16 @@ A partir de 2017, a zona leste destaca-se como a região com o maior número de 
 
 # Plot the accumulated difference by year
 ggplot(diferenca_regiao, aes(x = Ano, y = Diferenca_Acumulada, color = Região)) +
-  geom_line(size = 1) +
-  geom_text(data = valores_finais_regiao, aes(x = max(diferenca_regiao$Ano), y = Valor_Final, label = Valor_Final, color = Região),
-            hjust = -0.1, vjust = 1, size = 3.5, show.legend = FALSE) +
+  geom_line(size = 2) +
+  geom_text(data = valores_finais_regiao, aes(x = max(diferenca_regiao$Ano), y = Valor_Final, label = prop, color = Região),
+            hjust = -0.003, vjust = -0.1, size = 3.5, show.legend = FALSE) +
   theme_minimal(base_size = 10) +
-  labs(title = "Accumulated Difference of Openings and Closures of CNPJ's in Teresina by Region",
-       x = "Year",
-       y = "Accumulated Difference of Companies") +
-  scale_color_manual(values = c("red", "gold", "green", "purple", "blue")) +
+  labs(title = "Acumulado de Ativações menos baixa por ano por Região",
+       x = "Ano",
+       y = "Quantidade") +
+  scale_color_manual(values =colors ) +
   scale_x_continuous(breaks = seq(min(year(estabelecimentos_the$data_inicio_atividade), na.rm = TRUE),
-                                  max(year(estabelecimentos_the$data_inicio_atividade), na.rm = TRUE), by = 3)) +
+                                  max(year(estabelecimentos_the$data_inicio_atividade),na.rm = TRUE), by = 3), expand = expansion(add = c(1,10))) +
   scale_colour_manual(values = colors)+        
   theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
         axis.title.x = element_text(size = 20),
@@ -528,6 +533,56 @@ ggplot(diferenca_regiao, aes(x = Ano, y = Diferenca_Acumulada, color = Região))
         legend.text = element_text(size = 10),
         panel.grid.minor.x = element_blank())
 ```
+## Crescimento percentual por zona desde 2018
+
+Percebe-se na imagem anterior que há um grande crescimento de CNPJ's ativos a partir de 2018, o gráfico a seguir quantifica percentualmente o aumento entre 2018 e 2024. O que se nota é uma evoluação gigantesca nas regiões, a excessão do centro com 31,82 %, sendo a zona norte com o maior aumento percentual com 121,79%, seguido por perto pela zona sudeste. A pergunta que fica é onde está efeito econômico desse aumento desse CNPJ's? Foi de fato um avanço ou resultado da tercereização de serviços?
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+diferenca_percentual <- diferenca_regiao |>
+  dplyr::filter(Ano %in% c(2018, 2024)) |>
+  dplyr::select(Ano, Região, Diferenca_Acumulada) |>
+  tidyr::pivot_wider(names_from = "Ano", values_from = "Diferenca_Acumulada") |>
+  dplyr::mutate(
+    Aumento_Percentual = ((`2024` - `2018`) / `2018`) * 100
+  )|>
+  dplyr::arrange(Aumento_Percentual)
+
+order_região = diferenca_percentual$Região
+
+
+diferenca_percentual|>
+dplyr::mutate(Região = factor(Região, levels=order_região))|>
+ggplot(aes(x = Região, y = Aumento_Percentual, fill = Região)) +
+  geom_bar(stat = "identity", width = 0.7) +   # Create bars using actual values
+  coord_flip() +
+  geom_text(
+    aes(label = paste0(round(Aumento_Percentual, 2), "%")),  # Add labels with rounded values and %
+     hjust = +1,                                           # Position of the text above the bar
+    size = 6,                                               # Font size for the labels
+    color = "white"
+  ) +
+  labs(
+    title = "Aumento Percentual de CNPJ's Ativos de 2018 a 2024 por Região",  # Title
+    x = "Região",                                           # X-axis label
+    y = "Aumento Percentual (%)"                            # Y-axis label
+  ) +
+  scale_y_continuous(labels = percent_format(scale = 1), expand = c(0, 5)) +  # Format Y-axis labels as percentages
+ # scale_fill_manual(
+    #values = c("Central" = colors[1], "Zona Leste" = colors[2], "Zona Norte" = colors[3], "Zona Sudeste" = colors[4], "Zona Sul" = colors[5]) ) +
+  scale_fill_manual(values = colors)+     
+  theme_minimal(10) +                                         # Minimalist design
+  theme(
+    axis.text = element_text(size = 12),                   # Size of axis text
+    axis.title = element_text(size = 14),                  # Size of axis titles
+    plot.title = element_text(size = 16, hjust = 0.5),     # Center-align the title
+    legend.position = "none"                               # Remove legend
+  )
+```
+
 
 ## Mapa do crescimento por zona
 
@@ -569,16 +624,16 @@ ggplot() +
   ) +
   # Customize the gradient scale for fill color
   scale_fill_gradient(
-    name = "Quantidade de CNPJ's",      # Legend title
-    low = "#caf0f8",                    # Light blue for low values
-    high = "#03045e"                    # Dark blue for high values
+    name = "CNPJ's Ativos",      # Legend title
+    low = "#a9d6e5",                    # Light blue for low values
+    high = "#012a4a"                    # Dark blue for high values
   ) +
   # Facet maps by year for comparison
   facet_wrap(~ Ano, ncol = 3) +         # Wrap by year, 2 columns for better layout
   # Add titles and labels
   labs(
     title = "CNPJ's Ativos por Região e Ano",       # Main title
-    subtitle = "Quantidade de Empresas por Diferença Acumulada",  # Subtitle
+    #subtitle = "CNPJ's Ativos ",  # Subtitle
     # caption = "",  # Optional: Add a source or annotation
     # x = NULL,  # Remove X-axis label
     # y = NULL   # Remove Y-axis label
@@ -596,7 +651,7 @@ ggplot() +
     plot.subtitle = element_text(hjust = 0.5, size = 12),    # Centered subtitle
     # axis.text = element_blank(),          # Remove axis text
     # axis.ticks = element_blank(),         # Remove axis ticks
-    strip.text = element_text(size = 12, face = "bold")      # Facet label styling
+    strip.text = element_text(size = 12, face = "bold"))     # Facet label styling
 ```
 
 ## Top 8 Bairros
@@ -656,10 +711,10 @@ diferenca_bairro|>
   geom_text(data = valores_finais_bairro, aes(x = max(diferenca_bairro$Ano), y = Valor_Final, label = Valor_Final, color = bairro),
             hjust = -0.1, vjust = 1, size = 3.5, show.legend = FALSE) +
   theme_minimal(base_size = 10) +
-  labs(title = "Accumulated Difference of Openings and Closures of CNPJ's in Teresina by Neighborhood (Top 8)",
-       x = "Year",
-       y = "Accumulated Difference of Companies",
-       color = "Neighborhood") +
+  labs(title = "Acumulado de Ativações menos baixa por ano por Bairro (Top 8)",
+       x = "Ano ",
+       y = "Quantidade",
+       color = "Bairros") +
   scale_x_continuous(breaks = seq(min(year(estabelecimentos_the$data_inicio_atividade), na.rm = TRUE),
                                   max(year(estabelecimentos_the$data_inicio_atividade), na.rm = TRUE), by = 3)) +
      scale_color_manual(values = colors) +                               
@@ -692,10 +747,10 @@ estabelecimentos_the|>
   tidyr::drop_na(Região)|>
   dplyr::mutate(Periodo = lubridate::interval(data_inicio_atividade, data_situacao_cadastral)/months(1))|>
   dplyr::group_by(Região)|>
-  dplyr::summarise(N = format_real(n()),
+  dplyr::summarise(Quantidade = format_real(n()),
                     Média = round(mean(Periodo)/12,2), 
                     Mediana = round(median(Periodo)/12,2),
-                   `SD` = round(sd(Periodo)/12,2),
+                   `Desvio Padrão` = round(sd(Periodo)/12,2),
                   Máximo = round(max(Periodo)/12,2))|>
   flextable::flextable()|>
   flextable::width(j = "Região", width = 2)|>
@@ -739,7 +794,6 @@ estabelecimentos_the|>
         legend.position = "none")+ 
   facet_wrap(~ Região)+
   scale_color_manual(values = colors)
-
 ```
 
 ## Tempo médio (anos) de existência das empresas que não deram baixa no CNPJ - Ativas
@@ -758,11 +812,11 @@ estabelecimentos_the|>
   tidyr::drop_na(Região)|>
   dplyr::mutate(Periodo = lubridate::interval(data_inicio_atividade, max(estabelecimentos_the$data_situacao_cadastral, na.rm = T))/months(1))|>
   dplyr::group_by(Região)|>
-  dplyr::summarise(N = format_real(n()),
+  dplyr::summarise(Quantidade = format_real(n()),
                     Média = round(mean(Periodo)/12,2), 
                     Mediana = round(median(Periodo)/12,2),
-                   `SD` = round(sd(Periodo)/12,2),
-                  Máximo = round(max(Periodo)/12,2))|>
+                   `Desvio Padrão` = round(sd(Periodo)/12,2),
+                    Máximo = round(max(Periodo)/12,2))|>
   flextable::flextable()|>
   flextable::width(j = "Região", width = 2)|>
   flextable::theme_zebra() # Adjust 
@@ -822,9 +876,11 @@ estabelecimentos_the|>
   as.data.frame()|>
   filter(!is.na(nm_cnae))|>
   head(20)|>
-  dplyr::mutate(n = format_real(n))|>
+  dplyr::mutate(Quantidade = format_real(n))|>
+  dplyr::rename(Classificação = nm_cnae)|>
+  dplyr::select(Classificação, Quantidade)|>
   flextable::flextable()|>
-  flextable::width(j = "nm_cnae", width = 6)|>
+  flextable::width(j = "Classificação", width = 6)|>
   flextable::theme_zebra() # Adjust  
 ```
 
@@ -844,15 +900,16 @@ estabelecimentos_the|>
                  Periodo = Periodo/12 )|>
   filter(!is.na(nm_cnae), !is.na(Periodo))|>
   dplyr::group_by(nm_cnae)|>
-  dplyr::summarise(n =n(), 
+  dplyr::summarise(Quantidade =n(), 
         "Médio Tempo Ativo" = round(mean(Periodo), 2), 
                            "Mediana Tempo Ativo" = round(median(Periodo),2), 
                            Máximo = round(max(Periodo),2))|>
-  arrange(desc(n))|>
-  dplyr::mutate(n = format_real(n))|>
+  arrange(desc(Quantidade))|>
+  dplyr::mutate(Quantidade = format_real(Quantidade))|>
+  dplyr::rename(Classificação = nm_cnae)|>
   head(20)|>
   flextable::flextable()|>
-  flextable::width(j = "nm_cnae", width = 6)|>
+  flextable::width(j = "Classificação", width = 6)|>
   flextable::theme_zebra() # Adjust  
 ```
 
@@ -872,15 +929,17 @@ estabelecimentos_the|>
                 Periodo = Periodo/12 )|>
   filter(!is.na(nm_cnae), !is.na(Periodo))|>
   dplyr::group_by(nm_cnae)|>
-  dplyr::summarise(n =n(), "Médio Tempo Ativo" = round(mean(Periodo), 2), 
+  dplyr::summarise(Quantidade =n(),
+                   "Médio Tempo Ativo" = round(mean(Periodo), 2), 
                            "Mediana Tempo Ativo" = round(median(Periodo),2), 
                            Máximo = round(max(Periodo),2))|>
   
-  arrange(desc(n))|>
-  dplyr::mutate(n = format_real(n))|>
+  arrange(desc(Quantidade))|>
+  dplyr::mutate(Quantidade= format_real(Quantidade))|>
+  dplyr::rename(Classificação = nm_cnae)|>
   head(20)|>
   flextable::flextable()|>
-  flextable::width(j = "nm_cnae", width = 6)|>
+  flextable::width(j = "Classificação", width = 6)|>
   flextable::theme_zebra() # Adjust  
 ```
 
@@ -938,15 +997,16 @@ Vale destacar que, até 2011, a atividade mais predominante era a de **minimerca
 
 # Plot the accumulated difference by year
 diferenca_nm_cnae|>
-  filter(nm_cnae %in% c(valores_finais_nm_cnae$nm_cnae))|>
-  ggplot(aes(x = Ano, y = Diferenca_Acumulada, color =str_wrap(nm_cnae,20))) +
+  dplyr::rename(Classificação = nm_cnae)|>
+  filter(Classificação %in% c(valores_finais_nm_cnae$nm_cnae))|>
+  ggplot(aes(x = Ano, y = Diferenca_Acumulada, color =str_wrap(Classificação,20))) +
   geom_line(size = 1) +
   geom_text(data = valores_finais_nm_cnae, aes(x = max(diferenca_nm_cnae$Ano), y = Valor_Final, label = Valor_Final, color = str_wrap(nm_cnae,20)),hjust = -0.1, vjust = 1, size = 3.5, show.legend = FALSE) +
   theme_minimal(base_size = 10) +
-  labs(title = " CNPJ's History in Teresina by CNAE (Top 8)",
-       x = "Year",
-       y = "Accumulated Difference of Companies",
-       color = "nm_cnae") +
+  labs(title = "Histórico de Empresas por CNAE (Top 8)",
+       x = "Ano",
+       y = "Quantidade",
+       color = "Classificação") +
   scale_x_continuous(breaks = seq(min(year(estabelecimentos_the$data_inicio_atividade), na.rm = TRUE),
                                   max(year(estabelecimentos_the$data_inicio_atividade), na.rm = TRUE), by = 3)) +
   scale_colour_manual(values = colors)+                                
