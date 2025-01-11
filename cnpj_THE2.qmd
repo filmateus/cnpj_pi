@@ -3,10 +3,9 @@ title: "Análise de abertura e baixa de CNPJ's em Teresina - PI"
 format: html
 ---
 
+Buscar formas de analisar o mercado de uma região é essencial para compreender o desenvolvimento local, tanto do ponto de vista do setor público, que pode implementar políticas voltadas ao incentivo do comércio, quanto do empresariado, que pode identificar estratégias de sobrevivência e adaptação diante da dinamicidade do mercado. Essa análise, com base nos dados da Receita Federal, calcula o tempo de existência de uma empresa a partir do intervalo entre a ativação do CNPJ e sua eventual baixa.
 
-Buscar formas de analisar o mercado de uma região é importante para o entender desenvolvimento local, tanto para o setor público, onde o estado pode praticar políticas que incentivem o comércio, quanto para o empresariado, que pode buscar formas de sobrevivência superando a dinamicidade do mercado. Esta análise, utilizando os dados da Receita Federal, calcula o tempo de existência de uma empresa através do intervalo de tempo entre a ativação do CNPJ e a sua baixa, quando houver.
-
-É importante destacar que o banco de dados apresenta problemas de preenchimento, como nomes de bairros incorretos — apenas o termo "centro" teve 10 formas diferentes de escrita — ou campos não preenchidos, resultando na perda de alguns elementos. Embora esses problemas não prejudiquem o estudo, eles impedem a obtenção de números que sejam exatamente precisos em relação à realidade.
+É importante destacar que o banco de dados apresenta inconsistências no preenchimento, como a presença de nomes de bairros incorretos — apenas o termo "Centro" foi registrado em 10 formas diferentes de escrita —, além de campos não preenchidos, resultando na perda de alguns elementos. Embora essas limitações não comprometam a análise como um todo, elas dificultam a obtenção de números que reflitam com exatidão a realidade.
 
 Os dados foram obtidos no site da Receita Federal e abrangem o período desde a década de 1960 até os dias atuais. Filtramos as informações para utilizar apenas os **dados de CNPJ's ativos e CNPJ's com baixa de entidades empresariais** e não buscaremos aprofundar a análise em buscas de respostas para as mudanças que ocorreram durante o período analisado pois é tema muito extenso para este texto. 
 
@@ -110,7 +109,7 @@ code_cnae = qsacnpj::tab_cnae |>
 
 ## Ativação e baixas
 
-Os gráficos a seguir ilustram a evolução histórica das baixas de empresas no estado do Piauí. É possível observar que, em todos os anos analisados, o número de aberturas supera o de baixas. No entanto, em 2008, 2015 e 2018, há picos significativos no número de baixas, consequência de iniciativas da Receita Federal para o cancelamento de CNPJs de empresas que já não estavam em operação.
+Os gráficos a seguir ilustram a evolução histórica das baixas de empresas no estado do Piauí. Observa-se que, em todos os anos analisados, o número de empresas abertas é superior ao de baixas. Contudo, nos anos de 2008, 2015 e 2018, registram-se picos significativos no número de baixas, resultado de ações da Receita Federal voltadas ao cancelamento de CNPJs de empresas que já não estavam em operação.
 
 
 ```{r}
@@ -169,9 +168,9 @@ A parte final da série demonstra que, a partir de 2020, ocorre um aumento signi
 
 # Evolução de CNPJ's ativos
 
-Uma análise histórica sobre a diferença entre ativações e baixas revela que, entre 1971 e 2007, houve um processo gradual e consistente de crescimento no número de empresas abertas, o qual culminou em 2008. Nesse ano, a ação da Receita Federal para cancelar CNPJs de empresas inativas possuiu um impacto significativo, resultando em uma redução de 43% no total de empresas ativas. Em 2010, começa um processo de recuperação, embora ainda afetado por baixas represadas. Contudo, a partir de 2018, observa-se um expressivo crescimento no número de CNPJs ativos, gerando um aumento de 86% entre 2018 e 2024. Certamente, o valor de 32.702 não é o valor exato de CNPJ's ativos, mas o ponto importante é o aumento diagnósticado.
+Uma análise histórica sobre a diferença entre ativações e baixas revela que, entre 1971 e 2007, houve um processo gradual e consistente de crescimento no número de empresas abertas, o qual culminou em 2008. Nesse ano, a ação da Receita Federal para o cancelamento de CNPJs de empresas inativas teve um impacto significativo, resultando em uma redução de 43% no total de empresas ativas. Em 2010, inicia-se um processo de recuperação, embora ainda influenciado por baixas represadas. Contudo, a partir de 2018, observa-se um expressivo crescimento no número de CNPJs ativos, com um aumento de 86% entre 2018 e 2024. É importante salientar que o valor de 32.702 empresas não corresponde ao número exato de CNPJs ativos, mas o ponto central é o aumento identificado.
 
-A seguir, apresentaremos uma análise detalhada dos dados com base no CNAE, destacando quais atividades econômicas registraram os maiores avanços nesse período.
+A seguir, será apresentada uma análise detalhada dos dados com base no CNAE, destacando as atividades econômicas que registraram os maiores avanços durante o período analisado.
 
 ```{r}
 #| message: false
@@ -425,9 +424,9 @@ valores_finais_regiao <- diferenca_regiao|>
 
 ## Abertura por zona
 
-A análise por região é importante para identificar quais áreas da cidade concentram maior atividade comercial. Observa-se que as curvas de evolução por zonas da cidade apresentam comportamentos semelhantes à curva geral, que desconsidera a divisão por regiões. No entanto, ao analisá-las detalhadamente, percebe-se diferentes fases no padrão de aberturas.
+A análise regional é fundamental para identificar quais áreas da cidade concentram a maior atividade comercial. Nota-se que as curvas de evolução das zonas da cidade apresentam comportamentos semelhantes à curva geral, que não considera a divisão por regiões. Contudo, ao examiná-las em maior profundidade, observa-se a existência de diferentes fases no padrão de abertura de empresas.
 
-Inicialmente, o centro da cidade destacava-se como a região com maior número de ativações, sendo predominante até 1989, quando a zona sul passou a acompanhar seu desempenho. A partir de 2009, entretanto, a zona sul registra um grande aumento no número de empresas ativas, superando de forma significativa a região central. Em paralelo, a zona leste estabelece-se como o outro setor com maior volume de ativações. Já a região central, que historicamente liderava as aberturas, perde relevância ao longo do tempo, tornando-se, a partir de 2020, a área com o menor número de ativações na cidade.
+Inicialmente, o Centro da cidade destacava-se como a região com o maior número de ativações, mantendo sua predominância até 1989, quando a Zona Sul passou a acompanhar seu desempenho. A partir de 2009, contudo, a Zona Sul registra um expressivo aumento no número de empresas ativas, superando de forma significativa a região central. Paralelamente, a Zona Leste consolida-se como outra área com elevado volume de ativações. Em contraste, a região central, que historicamente liderava as aberturas, perde relevância ao longo do tempo e, a partir de 2020, passa a ser a área com o menor número de ativações na cidade.
 
 
 ```{r}
@@ -502,9 +501,9 @@ estabelecimentos_the|>
 
 ## Evolução por Região
 
-A evolução histórica dos CNPJs ativos evidencia como a região central da cidade foi dominante até 2008. No entanto, esse mesmo ano marcou uma significativa retração na região, sendo a mais impactada pelas baixas realizadas pela Receita Federal. Considerando o caráter acumulado e represado das baixas de CNPJs na zona central, é possível que, mesmo antes de 2008, a região já pudesse ter sido superada pela zona sul em termos de número de empresas ativas.
+A evolução histórica dos CNPJs ativos evidencia que a região central da cidade foi dominante até 2008. No entanto, esse mesmo ano marcou uma significativa retração nessa região, que foi a mais impactada pelas baixas realizadas pela Receita Federal. Considerando o caráter acumulado e represado dessas baixas na zona central, é possível que, mesmo antes de 2008, a região já tivesse sido superada pela zona sul em termos de número de empresas ativas.
 
-A partir de 2017, a zona leste destaca-se como a região com o maior número de CNPJs ativos, acompanhada de perto pela zona sul. Contudo, em 2023, a zona sul registra uma leve desaceleração, enquanto a zona leste consolida sua liderança como a região com a maior atividade empresarial da cidade.
+A partir de 2017, a Zona Leste se destaca como a região com o maior número de CNPJs ativos, seguida de perto pela Zona Sul. Contudo, em 2023, a Zona Sul apresenta uma leve desaceleração, enquanto a Zona Leste consolida sua liderança como a região de maior atividade empresarial da cidade.
 
 ```{r}
 #| message: false
@@ -535,7 +534,7 @@ ggplot(diferenca_regiao, aes(x = Ano, y = Diferenca_Acumulada, color = Região))
 ```
 ## Crescimento percentual por zona desde 2018
 
-Percebe-se na imagem anterior que há um grande crescimento de CNPJ's ativos a partir de 2018, o gráfico a seguir quantifica percentualmente o aumento entre 2018 e 2024. O que se nota é uma evoluação gigantesca nas regiões, a excessão do centro com 31,82 %, sendo a zona norte com o maior aumento percentual com 121,79%, seguido por perto pela zona sudeste. A pergunta que fica é onde está efeito econômico desse aumento desse CNPJ's? Foi de fato um avanço ou resultado da tercereização de serviços?
+Percebe-se, na imagem anterior, um grande crescimento de CNPJs ativos a partir de 2018. O gráfico a seguir quantifica, percentualmente, o aumento entre 2018 e 2024. Nota-se uma evolução significativa em todas as regiões, com exceção do Centro, que apresentou um crescimento de apenas 31,82%. Destaca-se a Zona Norte, que registrou o maior aumento percentual, com 121,79%, seguida de perto pela Zona Sudeste. A questão que surge é: onde está o impacto econômico desse aumento de CNPJs? Trata-se, de fato, de um avanço ou seria o reflexo do crescimento da terceirização de serviços?
 
 ```{r}
 #| message: false
@@ -696,7 +695,7 @@ valores_finais_bairro <- diferenca_bairro|>
   head(8)
 ```
 
-O gráfico abaixo apresenta a evolução dos atuais oito bairros com maior número de CNPJs ativos. Destaca-se o domínio do Centro, seguido pelo bairro Vale que Tem, que ocupa a segunda posição. No entanto, mesmo sendo o segundo colocado, Vale que Tem não alcança 60% do total de CNPJs registrados na região central. Esse panorama evidencia uma diversificação geográfica das atividades comerciais, indicando que há uma distribuição mais ampla de setores comercais dentro das zonas. Essa tendência reflete a presença de atividades comerciais voltadas para o atendimento de demandas em diferentes regiões sem a necessidade de se locomever para o centro.
+O gráfico abaixo apresenta a evolução dos oito bairros com o maior número de CNPJs ativos. Destaca-se o domínio do Centro, seguido pelo bairro Vale que Tem, que ocupa a segunda posição. No entanto, mesmo sendo o segundo colocado, Vale que Tem não alcança 60% do total de CNPJs registrados na região central. Esse panorama evidencia uma diversificação geográfica das atividades comerciais, indicando uma distribuição mais ampla de setores comerciais dentro das zonas. Essa tendência reflete a presença de atividades comerciais voltadas para o atendimento de demandas em diferentes regiões, sem a necessidade de deslocamento para o Centro.
 
 ```{r}
 #| message: false
@@ -731,9 +730,9 @@ diferenca_bairro|>
 
 ## Tempo médio (anos) de existência das empresas que deram baixa no CNPJ - Baixadas
 
-A média aritmética é uma medida estatística fundamental que fornece um valor representativo para entender o comportamento geral de uma distribuição de dados. No entanto, é importante notar que a média pode ser significativamente influenciada por valores extremos ou outliers, que podem distorcer a representação real dos dados. Por essa razão, em algumas situações, é recomendável complementar a análise com outras medidas de tendência central, como a mediana e a moda, que podem oferecer interpretações  mais robustas em distribuições assimétricas ou com variações extremas. 
+A média aritmética é uma medida estatística fundamental que fornece um valor representativo para entender o comportamento geral de uma distribuição de dados. No entanto, é importante notar que a média pode ser significativamente influenciada por valores extremos, ou outliers, o que pode distorcer a representação real dos dados. Por essa razão, em algumas situações, é recomendável complementar a análise com outras medidas de tendência central, como a mediana e a moda, que podem oferecer interpretações mais robustas em distribuições assimétricas ou com variações extremas.
 
-Para obter uma compreensão mais precisa e detalhada dos dados, dividimos a análise da média, da mediana (valor central da distribuição) em duas categorias distintas: empresas com CNPJ baixados e empresas com CNPJ ativos. Essa abordagem permite identificar diferenças entre as duas categorias e fornece informações específicas sobre o comportamento de cada grupo.
+Para obter uma compreensão mais precisa e detalhada dos dados, dividimos a análise da média e da mediana (valor central da distribuição) em duas categorias distintas: empresas com CNPJ baixados e empresas com CNPJ ativos. Essa abordagem permite identificar diferenças entre as duas categorias e fornece informações específicas sobre o comportamento de cada grupo.
 
 ```{r}
 #| message: false
@@ -757,13 +756,13 @@ estabelecimentos_the|>
   flextable::theme_zebra() # Adjust 
 ```
 
-Ao analisar as empresas que já fecharam, observamos que as zonas sul e central destacam-se por possuir a maior quantidade de elementos e uma média mais elevada. A zona sul apresenta uma elevada quantidade de empresas fechadas, acompanhada por uma média alta.  
+Ao analisar as empresas que já fecharam, observamos que as zonas Sul e Central se destacam por possuírem a maior quantidade de elementos e uma média mais elevada. A Zona Sul, em particular, apresenta uma elevada quantidade de empresas fechadas, acompanhada por uma média alta.
 
-Semelhante à zona sul, a zona central também possui uma alta quantidade de empresas fechadas e uma média elevada. No entanto, o destaque aqui é a menor distância entre a média e a mediana, o que sugere uma distribuição dos dados mais simétrica e menos influenciada por outliers extremos
+Semelhante à Zona Sul, a Zona Central também possui uma alta quantidade de empresas fechadas e uma média elevada. No entanto, o destaque aqui é a menor distância entre a média e a mediana, o que sugere uma distribuição dos dados mais simétrica e menos influenciada por outliers extremos.
 
 ### Plot
 
-Comparando as curvas de distribuição pode-se perceber a zona central é que possui  maior regularidade, sem um pico tão alto, as outras zonas, principalmente a sudeste, possuem um pico de redução gradual o que indica que os primeiros anos das empresas são mais propensos para a baixa do cnpj.
+Comparando as curvas de distribuição, pode-se perceber que a Zona Central possui maior regularidade, sem um pico tão alto. As outras zonas, principalmente a Sudeste, apresentam um pico com redução gradual, o que indica que os primeiros anos das empresas são mais propensos à baixa do CNPJ.
 
 ```{r}
 #| message: false
@@ -824,7 +823,7 @@ estabelecimentos_the|>
 
 ### Plot
 
-Ao analisar os dados das empresas ativas, observamos que as medidas centrais não diferem significativamente das empresas que encerraram suas atividades. No entanto, as distribuições apresentam diferenças notáveis. Nas empresas que fecharam, há picos em torno de 10%. Em contraste, entre as empresas ativas, nenhuma distribuição começa com menos de 10%, a excesão do centro. Isso indica a presença de muitas empresas novas, com até cinco anos de existência.
+Ao analisar os dados das empresas ativas, observamos que as medidas centrais não diferem significativamente das empresas que encerraram suas atividades. No entanto, as distribuições apresentam diferenças notáveis. Nas empresas que fecharam, há picos em torno de 10%. Em contraste, entre as empresas ativas, nenhuma distribuição começa com menos de 10%, à exceção do Centro. Isso indica a presença de muitas empresas novas, com até cinco anos de existência.
 
 ```{r}
 #| message: false
@@ -886,7 +885,8 @@ estabelecimentos_the|>
 
 ### CNPJ's baixados por CNAE - Top 20
 
-Considerando apenas os CNPJs baixados e os 20 principais setores, observamos uma variação significativa nos valores, com destaque para os hipermercados, que apresentam o maior tempo de atividade. Um indicador relevante nessa análise é a diferença entre a média e a mediana, uma vez que ela reflete o grau de influência dos valores extremos. O setor de Comércio Varejista de Artigos do Vestuário, por exemplo, possui a maior disparidade., com uma diferença de 3,67 anos. Esse dado sugere que, embora existam empresas com um longo período de atividade, a maior parte delas apresenta uma duração consideravelmente menor. 
+Considerando apenas os CNPJs baixados e os 20 principais setores, observamos uma variação significativa nos valores, com destaque para os hipermercados, que apresentam o maior tempo de atividade. Um indicador relevante nessa análise é a diferença entre a média e a mediana, uma vez que reflete o grau de influência dos valores extremos. O setor de Comércio Varejista de Artigos do Vestuário, por exemplo, possui a maior disparidade, com uma diferença de 3,67 anos. Esse dado sugere que, embora existam empresas com um longo período de atividade, a maior parte apresenta uma duração consideravelmente menor.
+
 
 ```{r}
 #| message: false
@@ -915,7 +915,7 @@ estabelecimentos_the|>
 
 ### CNPJ's ativos por CNAE - Top 20
 
-Podemos perceber algumas diferenças  entre as tabelas de ativos e inativos, especialmente no que diz respeito às mudanças nas atividades comerciais mais praticadas. Um dos destaques é o aumento de atividades relacionadas a cabeleireiros, manicure e pedicure, assim como a inclusão de categorias como atividades médicas ambulatoriais restritas a consultas e treinamento em desenvolvimento profissional e gerencial, que passam a ocupar posições de maior relevância no contexto analisado. Essas duas últimas, inclusive, não figuravam no top 20 das atividades inativas anteriormente.
+Podemos perceber algumas diferenças entre as tabelas de empresas ativas e inativas, especialmente no que diz respeito às mudanças nas atividades comerciais mais praticadas. Um dos destaques é o aumento de atividades relacionadas a cabeleireiros, manicures e pedicures, assim como a inclusão de categorias como atividades médicas ambulatoriais restritas a consultas e treinamento em desenvolvimento profissional e gerencial, que passam a ocupar posições de maior relevância no contexto analisado. Essas duas últimas, inclusive, não figuravam no top 20 das atividades inativas anteriormente.
 
 ```{r}
 #| message: false
@@ -1021,6 +1021,6 @@ diferenca_nm_cnae|>
         panel.grid.minor.x = element_blank()) 
 ```
 
-Conforme mencionamos anteriormente, as razões para essas mudanças no comércio demandam uma análise mais aprofundada. No entanto, é possível apontar alguns fatores importantes que podem estar contribuindo para essas transformações, como o crescimento das atividades online, o aumento no número de Microempreendedores Individuais (MEIs) e as deficiências no transporte público, que podem influenciar diretamente o comportamento do mercado.
+Conforme mencionado anteriormente, as razões para essas mudanças no comércio demandam uma análise mais aprofundada. No entanto, é possível apontar alguns fatores importantes que podem estar contribuindo para essas transformações, como o crescimento das atividades online, o aumento no número de Microempreendedores Individuais (MEIs) e as deficiências no transporte público, que podem influenciar diretamente o comportamento do mercado.
 
 Essa análise, ainda em estágio inicial, evidencia como o uso de dados é essencial para compreender melhor o funcionamento das estruturas de mercado e as dinâmicas que impulsionam suas mudanças.
